@@ -83,7 +83,7 @@ ADMIN_PASSWORD='ваш-пароль' python3 app.py
 
 Окно не закрывайте. Строка «Сервис слушает порт 8080» означает, что запуск прошёл. Если пароль не задан и файла `data/admin.json` ещё нет, процесс сразу остановится и напишет, что нужна переменная `ADMIN_PASSWORD`.
 
-4. Откройте в браузере http://127.0.0.1:8080 . При первом запуске каталог из 66 профилей сам загружается из `data/contractors.csv`. На главной четыре кнопки с готовыми запросами из раздела «Проверенные запросы». Админ-панель: http://127.0.0.1:8080/admin . Логин `admin`. Пароль — тот, который вы подставили в `ADMIN_PASSWORD`. Логин можно сменить переменной `ADMIN_USER` до первого запуска.
+4. Откройте в браузере http://127.0.0.1:8080 . При первом запуске каталог из 66 профилей сам загружается из `data/contractors.csv`. Готовые запросы из раздела «Проверенные запросы» вводятся в форму вручную. Админ-панель: http://127.0.0.1:8080/admin . Логин `admin`. Пароль — тот, который вы подставили в `ADMIN_PASSWORD`. Логин можно сменить переменной `ADMIN_USER` до первого запуска.
 5. Остановка: в окне терминала нажмите Ctrl+C. После этого страница перестаёт открываться. Следующий запуск из той же папки снова поднимает сервис. Файл `data/admin.json` уже создан, поэтому пароль повторно задавать не нужно: действует первый. В файле лежит только хеш scrypt, не сам пароль. Смена пароля есть в админке: текущий, новый и повтор. Чтобы задать пароль заново через переменную, удалите `data/admin.json` и перед запуском снова укажите `ADMIN_PASSWORD`.
 
 Файлы `data/admin.json` и `data/contractors.db` создаются на компьютере проверяющего и в git не входят. Больше 8 неудачных попыток входа с одного адреса за 10 минут временно блокируются. Сессия и этот счётчик пропадают после остановки процесса. Cookie сессии живёт 12 часов и имеет флаги `HttpOnly` и `SameSite=Lax`.
@@ -98,7 +98,7 @@ CSV загружается в два шага. После выбора файл�
 
 ## Проверенные запросы
 
-Кнопки на главной повторяют эти четыре запроса по загруженным 66 профилям.
+Эти четыре запроса проверены по загруженным 66 профилям. Их можно ввести в форму на главной.
 
 1. Плотная категория. Алматы, 14.10.2026, корпоратив, ведущий, бюджет 1 500 000. В городе 10 ведущих, проходят 7. Показаны три с наименьшей ценой: Куррапика, 500 000 тг, `HK-88430`; Мицури Канроджи, 650 000 тг, `HK-44923`; Кики, 900 000 тг, `HK-35215`. Дороже и тоже проходят Сон Гоку, Буллма, Хаул и Джинбей. Не проходят Аня Форджер (дата занята), Софи Хаттер (цена от 2 000 000 тг) и Эмилия (нет формата «корпоратив»).
 2. Редкая категория. Алматы, 14.10.2026, свадьба, флорист, бюджет 500 000. В городе 2 флориста, проходит 1: Тихиро Огино, 250 000 тг, `HK-90001`, синтетический профиль, лимит часов пустой. Тони Тони Чоппер не проходит: 14.10.2026 есть в занятых датах.
@@ -206,7 +206,7 @@ ADMIN_PASSWORD='ваш-пароль' python3 app.py
 
 Терезесін жаппаңыз. «Сервис слушает порт 8080» жолы іске қосу өткенін білдіреді. Құпиясөз берілмесе және `data/admin.json` файлы әлі жоқ болса, процесс бірден тоқтайды және `ADMIN_PASSWORD` айнымалысы керек екенін жазады.
 
-4. Браузерде http://127.0.0.1:8080 ашыңыз. Алғашқы іске қосуда 66 профильдік каталог `data/contractors.csv` файлынан өзі жүктеледі. Басты бетте «Тексерілген сұраулар» бөліміндегі дайын сұраулардың төрт түймесі бар. Әкімші панелі: http://127.0.0.1:8080/admin . Логин `admin`. Құпиясөз — `ADMIN_PASSWORD` ішіне қойғаныңыз. Логинді алғашқы іске қосуға дейін `ADMIN_USER` айнымалысымен ауыстыруға болады.
+4. Браузерде http://127.0.0.1:8080 ашыңыз. Алғашқы іске қосуда 66 профильдік каталог `data/contractors.csv` файлынан өзі жүктеледі. «Тексерілген сұраулар» бөліміндегі дайын сұраулар пішінге қолмен енгізіледі. Әкімші панелі: http://127.0.0.1:8080/admin . Логин `admin`. Құпиясөз — `ADMIN_PASSWORD` ішіне қойғаныңыз. Логинді алғашқы іске қосуға дейін `ADMIN_USER` айнымалысымен ауыстыруға болады.
 5. Тоқтату: терминал терезесінде Ctrl+C басыңыз. Осыдан кейін бет ашылмайды. Сол папкадан келесі іске қосу сервисті қайта көтереді. `data/admin.json` файлы жасалған, сондықтан құпиясөзді қайта беру керек емес: біріншісі қолданылады. Файлда тек scrypt хеші жатады, құпиясөздің өзі емес. Құпиясөзді панелде ауыстыруға болады: ағымдағы, жаңа және қайталау. Құпиясөзді айнымалы арқылы қайта беру үшін `data/admin.json` файлын жойып, іске қосу алдында `ADMIN_PASSWORD` көрсетіңіз.
 
 `data/admin.json` және `data/contractors.db` файлдары тексерушінің компьютерінен жасалады және git-ке кірмейді. Бір мекенжайдан 10 минутта 8-ден артық сәтсіз кіру уақытша бұғатталады. Сессия мен бұл есептегіш процесті тоқтатқанда жоғалады. Сессия cookie-і 12 сағат сақталады және `HttpOnly`, `SameSite=Lax` белгілері бар.
@@ -221,7 +221,7 @@ CSV екі қадаммен жүктеледі. Файл таңдалған со
 
 ## Тексерілген сұраулар
 
-Басты беттегі түймелер жүктелген 66 профиль бойынша осы төрт сұрауды қайталайды.
+Осы төрт сұрау жүктелген 66 профиль бойынша тексерілген. Оларды басты беттегі пішінге енгізуге болады.
 
 1. Жиі санат. Алматы, 14.10.2026, корпоратив, ведущий, бюджет 1 500 000. Қалада 10 жүргізуші, 7-еуі өтеді. Ең төмен бағамен үшеуі көрсетіледі: Куррапика, 500 000 тг, `HK-88430`; Мицури Канроджи, 650 000 тг, `HK-44923`; Кики, 900 000 тг, `HK-35215`. Қымбатырақ, бірақ өтетіндер: Сон Гоку, Буллма, Хаул, Джинбей. Өтпейтіндер: Аня Форджер (күн бос емес), Софи Хаттер (бастапқы баға 2 000 000 тг), Эмилия («корпоратив» түрі жоқ).
 2. Сирек санат. Алматы, 14.10.2026, свадьба, флорист, бюджет 500 000. Қалада 2 флорист, 1-еуі өтеді: Тихиро Огино, 250 000 тг, `HK-90001`, синтетикалық профиль, сағат шегі бос. Тони Тони Чоппер өтпейді: 14.10.2026 бос емес күндерде бар.
@@ -329,7 +329,7 @@ ADMIN_PASSWORD='your-password' python3 app.py
 
 Leave the window open. The line “Сервис слушает порт 8080” means the service started. If no password is set and `data/admin.json` does not exist yet, the process stops immediately and says that `ADMIN_PASSWORD` is required.
 
-4. Open http://127.0.0.1:8080 in a browser. On the first start the catalog of 66 profiles is loaded from `data/contractors.csv`. The main page has four buttons for the ready-made requests in “Checked requests”. Admin panel: http://127.0.0.1:8080/admin . The login is `admin`. The password is the one you put in `ADMIN_PASSWORD`. The login can be changed with `ADMIN_USER` before the first start.
+4. Open http://127.0.0.1:8080 in a browser. On the first start the catalog of 66 profiles is loaded from `data/contractors.csv`. The ready-made requests in “Checked requests” are entered in the form by hand. Admin panel: http://127.0.0.1:8080/admin . The login is `admin`. The password is the one you put in `ADMIN_PASSWORD`. The login can be changed with `ADMIN_USER` before the first start.
 5. To stop, press Ctrl+C in the terminal. The page then stops opening. The next start from the same folder brings the service back. `data/admin.json` already exists, so the password does not need to be set again: the first one remains in effect. The file stores only a scrypt hash, not the password itself. The panel can change it: current password, new password, and a repeat. To set a password through the variable again, delete `data/admin.json` and set `ADMIN_PASSWORD` before starting.
 
 `data/admin.json` and `data/contractors.db` are created on the reviewer’s computer and are not part of git. More than 8 failed login attempts from one address within 10 minutes are blocked for a while. The session and that counter disappear when the process stops. The session cookie lasts 12 hours and has the `HttpOnly` and `SameSite=Lax` flags.
@@ -344,7 +344,7 @@ After an add or an import, the city and category lists on the main page are read
 
 ## Checked requests
 
-The buttons on the main page repeat these four requests against the loaded 66 profiles.
+These four requests were checked against the loaded 66 profiles. They can be entered in the form on the main page.
 
 1. Dense category. Almaty, 14.10.2026, корпоратив, Ведущий, budget 1 500 000. The city has 10 hosts and 7 pass. The three lowest prices are shown: Куррапика, 500 000 KZT, `HK-88430`; Мицури Канроджи, 650 000 KZT, `HK-44923`; Кики, 900 000 KZT, `HK-35215`. Сон Гоку, Буллма, Хаул, and Джинбей also pass at higher prices. Аня Форджер is busy, Софи Хаттер starts at 2 000 000 KZT, and Эмилия has no корпоратив format.
 2. Rare category. Almaty, 14.10.2026, свадьба, Флорист, budget 500 000. The city has 2 florists and 1 passes: Тихиро Огино, 250 000 KZT, `HK-90001`, a synthetic profile with an empty hour limit. Тони Тони Чоппер does not pass: 14.10.2026 is in the busy dates.

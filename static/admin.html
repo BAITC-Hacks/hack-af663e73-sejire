@@ -36,10 +36,12 @@
     button:hover { background: #000; }
     button.quiet { background: var(--paper); color: var(--ink); }
     button.quiet:hover { background: #e8e8ed; }
-    #logout { margin-top: 20px; }
-    .langs { display: inline-flex; gap: 2px; margin-top: 16px; padding: 3px; background: #e8e8ed; border-radius: 999px; }
-    .langs button { background: transparent; color: var(--ink); border-radius: 999px; padding: 7px 14px; font-size: 13px; }
-    .langs button[aria-pressed="true"] { background: #fff; }
+    .panel-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 22px; }
+    #logout { margin-top: 0; }
+    .langs { display: inline-flex; align-items: center; }
+    .langs button { background: none; color: #b0b0b5; border-radius: 0; padding: 0 7px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+    .langs button + button { box-shadow: inset 1px 0 0 rgba(34, 35, 38, 0.14); }
+    .langs button[aria-pressed="true"], .langs button:hover { color: var(--ink); background: none; }
     .span, .checkline { grid-column: 1 / -1; }
     .checkline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
     fieldset { grid-column: 1 / -1; margin: 0; padding: 4px 0 0; border: 0; }
@@ -72,12 +74,14 @@
       <p id="login-error" class="error" hidden></p>
     </form>
     <section id="panel" hidden>
-      <div class="langs" id="admin-langs">
-        <button type="button" data-lang="ru">Русский</button>
-        <button type="button" data-lang="kz">Қазақша</button>
-        <button type="button" data-lang="en">English</button>
+      <div class="panel-top">
+        <div class="langs" id="admin-langs" role="group">
+          <button type="button" data-lang="ru">RU</button>
+          <button type="button" data-lang="kz">KZ</button>
+          <button type="button" data-lang="en">EN</button>
+        </div>
+        <button id="logout" class="quiet" type="button" data-i18n="logout">Выйти</button>
       </div>
-      <button id="logout" class="quiet" type="button" data-i18n="logout">Выйти</button>
       <h2 data-i18n="passwordTitle">Пароль</h2>
       <form id="password">
         <label><span data-i18n="currentPassword">Текущий пароль</span><input name="current" type="password" autocomplete="current-password" required></label>

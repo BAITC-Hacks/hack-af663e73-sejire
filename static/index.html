@@ -9,17 +9,19 @@
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 17px; line-height: 1.47; -webkit-font-smoothing: antialiased; }
-    main { max-width: 980px; margin: 0 auto; padding: 56px 24px 88px; }
-    h1 { font-size: 44px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; margin: 0; overflow-wrap: anywhere; }
-    .mark { color: var(--accent); margin-right: 10px; font-weight: 500; }
-    .lead { max-width: 38rem; color: var(--muted); margin: 14px 0 0; }
+    main { max-width: 920px; margin: 0 auto; padding: 48px 24px 80px; }
+    h1 { font-size: 40px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; margin: 0; overflow-wrap: anywhere; }
+    .mark { color: var(--accent); margin-right: 8px; font-weight: 500; }
+    .lead { max-width: 36rem; color: var(--muted); margin: 12px 0 0; font-size: 16px; }
     .top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
-    .admin-link { color: var(--muted); text-decoration: none; font-size: 14px; padding-top: 12px; white-space: nowrap; }
+    .tools { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 4px; }
+    .admin-link { color: var(--muted); text-decoration: none; font-size: 13px; white-space: nowrap; }
     .admin-link:hover { color: var(--ink); }
-    .langs { display: inline-flex; gap: 2px; margin-top: 22px; padding: 3px; background: #e8e8ed; border-radius: 999px; }
-    .langs button { background: transparent; color: var(--ink); border: 0; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 500; }
-    .langs button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
-    form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; margin: 28px 0 8px; min-width: 0; padding: 24px; background: #fff; border-radius: 28px; }
+    .langs { display: inline-flex; align-items: center; }
+    .langs button { background: none; color: #b0b0b5; border: 0; border-radius: 0; padding: 0 7px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+    .langs button + button { box-shadow: inset 1px 0 0 rgba(34, 35, 38, 0.14); }
+    .langs button[aria-pressed="true"], .langs button:hover { color: var(--ink); }
+    form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 12px; margin: 28px 0 8px; min-width: 0; padding: 22px; background: #fff; border-radius: 20px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(34, 35, 38, 0.05); }
     label { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted); }
     input, select { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
     input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 103, 0, 0.16); }
@@ -30,26 +32,23 @@
     #services input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
     #budget-custom { margin-top: 8px; }
     button { font: inherit; border: 0; cursor: pointer; }
-    form > button { grid-column: 1 / -1; justify-self: start; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 22px; font-size: 15px; font-weight: 600; }
+    form > button { align-self: end; background: var(--ink); color: #fff; border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600; }
     form > button:hover { background: #000; }
     .error { color: #b42318; }
-    .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-    .presets button { background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; }
-    .presets button:hover { background: #fff4ec; }
-    #outcome { margin: 22px 0 0; padding: 16px 18px; background: #fff; border-radius: 18px; }
-    #outcome.matched { box-shadow: inset 3px 0 0 var(--accent); }
-    #outcome.blocked, #outcome.no_category { box-shadow: inset 3px 0 0 #b42318; }
+    #outcome { margin: 22px 0 0; padding: 14px 16px; background: #fff; border-radius: 14px; font-size: 15px; }
+    #outcome.matched { box-shadow: inset 2px 0 0 var(--accent); }
+    #outcome.blocked, #outcome.no_category { box-shadow: inset 2px 0 0 #b42318; }
     .meta { margin: 0; color: var(--muted); font-size: 14px; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .badge { font-size: 12px; background: var(--paper); border-radius: 999px; padding: 4px 10px; }
     .badge.synthetic { background: #fff1e8; color: #9a3412; font-weight: 600; }
-    .cards { display: grid; gap: 12px; margin-top: 28px; }
-    article { background: #fff; border-radius: 24px; padding: 22px 24px 20px; }
-    .place { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; }
-    h2 { margin: 12px 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
-    h3 { margin: 40px 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .cards { display: grid; gap: 10px; margin-top: 22px; }
+    article { background: #fff; border-radius: 18px; padding: 20px 22px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03); }
+    .place { margin: 0; color: var(--accent); font-size: 12px; font-weight: 650; letter-spacing: 0.08em; }
+    h2 { margin: 6px 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+    h3 { margin: 32px 0 10px; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
     .score { margin: 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-    .wrap { overflow-x: auto; background: #fff; border-radius: 24px; max-width: 100%; }
+    .wrap { overflow-x: auto; background: #fff; border-radius: 18px; max-width: 100%; }
     article h2, li, caption { overflow-wrap: anywhere; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { border-bottom: 1px solid var(--line); padding: 12px 16px; text-align: left; font-weight: 500; }
@@ -57,10 +56,11 @@
     tbody th { color: var(--ink); }
     caption { caption-side: bottom; text-align: left; padding: 12px 16px 16px; color: var(--muted); font-size: 13px; }
     ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-    li { background: #fff; border-radius: 16px; padding: 14px 16px; color: var(--ink); }
+    li { background: #fff; border-radius: 14px; padding: 12px 14px; color: var(--ink); font-size: 15px; }
     @media (max-width: 800px) {
-      h1 { font-size: 34px; }
-      .top { flex-direction: column; gap: 8px; }
+      h1 { font-size: 32px; }
+      .top, .tools { align-items: flex-start; }
+      .top { flex-direction: column; gap: 16px; }
       form { grid-template-columns: 1fr; }
     }
   </style>
@@ -68,20 +68,18 @@
 <body>
   <main>
     <div class="top">
-      <h1><span class="mark" aria-hidden="true">ⓐ</span><span data-i18n="title">Умный подбор подрядчиков</span></h1>
-      <a class="admin-link" href="/admin" data-i18n="admin">Панель администратора</a>
-    </div>
-    <p class="lead" data-i18n="lead">Укажите город, дату, тип мероприятия, категорию подрядчика и бюджет. Длительность и язык можно не заполнять. В ответе не больше трёх карточек, и только из тех, кто свободен в эту дату.</p>
-    <div class="presets">
-      <button type="button" data-preset="dense" data-i18n="presetDense">Плотная категория</button>
-      <button type="button" data-preset="rare" data-i18n="presetRare">Редкая категория</button>
-      <button type="button" data-preset="empty" data-i18n="presetEmpty">Все заняты</button>
-      <button type="button" data-preset="missing" data-i18n="presetMissing">Нет категории в городе</button>
-    </div>
-    <div class="langs" role="group" data-i18n-label="languages">
-      <button type="button" data-lang="ru" aria-pressed="true">Русский</button>
-      <button type="button" data-lang="kz" aria-pressed="false">Қазақша</button>
-      <button type="button" data-lang="en" aria-pressed="false">English</button>
+      <div>
+        <h1><span class="mark" aria-hidden="true">ⓐ</span><span data-i18n="title">Умный подбор подрядчиков</span></h1>
+        <p class="lead" data-i18n="lead">Укажите город, дату, тип мероприятия, категорию подрядчика и бюджет. Длительность и язык можно не заполнять. В ответе не больше трёх карточек, и только из тех, кто свободен в эту дату.</p>
+      </div>
+      <div class="tools">
+        <div class="langs" role="group" data-i18n-label="languages">
+          <button type="button" data-lang="ru" aria-pressed="true">RU</button>
+          <button type="button" data-lang="kz" aria-pressed="false">KZ</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <a class="admin-link" href="/admin" data-i18n="admin">Панель администратора</a>
+      </div>
     </div>
     <form id="search">
       <label><span data-i18n="city">Город</span><select name="city" id="city" required></select></label>
@@ -108,10 +106,6 @@
         admin: "Панель администратора",
         lead: "Укажите город, дату, тип мероприятия, категорию подрядчика и бюджет. Длительность и язык можно не заполнять. В ответе не больше трёх карточек, и только из тех, кто свободен в эту дату.",
         languages: "Язык интерфейса",
-        presetDense: "Плотная категория",
-        presetRare: "Редкая категория",
-        presetEmpty: "Та же заявка, 12 декабря",
-        presetMissing: "Нет категории в городе",
         city: "Город",
         date: "Дата",
         format: "Тип мероприятия",
@@ -140,10 +134,6 @@
         admin: "Әкімші панелі",
         lead: "Қала, күн, іс-шара түрі, мердігер санаты және бюджетті көрсетіңіз. Ұзақтық пен тілді бос қалдыруға болады. Жауапта ең көбі үш карточка, әрі сол күні бос болғандар ғана.",
         languages: "Интерфейс тілі",
-        presetDense: "Жиі санат",
-        presetRare: "Сирек санат",
-        presetEmpty: "Сол өтінім, 12 желтоқсан",
-        presetMissing: "Қалада санат жоқ",
         city: "Қала",
         date: "Күні",
         format: "Іс-шара түрі",
@@ -172,10 +162,6 @@
         admin: "Admin panel",
         lead: "Set the city, date, event type, contractor category, and budget. Duration and language are optional. At most three cards are returned, and only for people free on that date.",
         languages: "Interface language",
-        presetDense: "Dense category",
-        presetRare: "Rare category",
-        presetEmpty: "Same request, 12 December",
-        presetMissing: "No category in the city",
         city: "City",
         date: "Date",
         format: "Event type",
@@ -199,13 +185,6 @@
         order: "Order: lowest starting price, then id. This is not a quality score.",
         failed: "Could not match contractors."
       }
-    };
-
-    const PRESETS = {
-      dense: { city: "Алматы", date: "2026-10-14", format: "корпоратив", category: "Ведущий", budget: "1 500 000", duration: "", language: "" },
-      rare: { city: "Алматы", date: "2026-10-14", format: "свадьба", category: "Флорист", budget: "500 000", duration: "", language: "" },
-      empty: { city: "Алматы", date: "2026-12-12", format: "корпоратив", category: "Ведущий", budget: "1 500 000", duration: "", language: "" },
-      missing: { city: "Астана", date: "2026-11-14", format: "конференция", category: "Ресторан", budget: "2 000 000", duration: "", language: "" }
     };
 
     const form = document.querySelector("#search");
@@ -385,19 +364,6 @@
       show(data);
     }
 
-    document.querySelectorAll("[data-preset]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const preset = PRESETS[button.dataset.preset];
-        document.querySelector("#city").value = preset.city;
-        document.querySelector("#date").value = preset.date;
-        document.querySelector("#format").value = preset.format;
-        document.querySelector("#category").value = preset.category;
-        document.querySelector("#budget").value = preset.budget;
-        document.querySelector("#duration").value = preset.duration;
-        document.querySelector("#language").value = preset.language;
-        run();
-      });
-    });
     document.querySelectorAll("[data-lang]").forEach((button) => {
       button.addEventListener("click", async () => {
         lang = button.dataset.lang;
