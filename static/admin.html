@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Администратор — подбор подрядчиков</title>
+  <style>
+    :root { --ink: #222326; --paper: #f5f5f7; --line: rgba(34, 35, 38, 0.12); --muted: #6e6e73; --accent: #ff6700; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 17px; line-height: 1.47; -webkit-font-smoothing: antialiased; }
+    main { max-width: 980px; margin: 0 auto; padding: 48px 24px 88px; }
+    a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    a:hover { color: var(--ink); }
+    h1 { font-size: 40px; font-weight: 600; letter-spacing: -0.035em; margin: 8px 0 0; }
+    .mark { color: var(--accent); margin-right: 10px; font-weight: 500; }
+    h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin: 36px 0 12px; }
+    form, .file-card { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 14px; padding: 24px; background: #fff; border-radius: 28px; }
+    #login { max-width: 440px; margin-top: 28px; }
+    label, legend { font-size: 12px; color: var(--muted); }
+    label { display: flex; flex-direction: column; gap: 8px; }
+    input, select { border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 103, 0, 0.16); }
+    button { font: inherit; border: 0; cursor: pointer; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 20px; font-size: 15px; font-weight: 600; justify-self: start; }
+    button:hover { background: #000; }
+    button.quiet { background: var(--paper); color: var(--ink); }
+    button.quiet:hover { background: #e8e8ed; }
+    #logout { margin-top: 20px; }
+    fieldset { grid-column: 1 / -1; margin: 0; padding: 4px 0 0; border: 0; }
+    legend { margin-bottom: 10px; }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choices label { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; background: var(--paper); border-radius: 999px; padding: 8px 12px; }
+    .choices input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+    form > button, #login button { grid-column: 1 / -1; }
+    .error { color: #b42318; margin: 0; }
+    .ok { color: #1d5c32; margin: 0; }
+    .file-card { margin-top: 12px; display: block; }
+    .file-card p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--paper); border-radius: 8px; padding: 2px 6px; }
+    .wrap { overflow-x: auto; background: #fff; border-radius: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; font-weight: 600; }
+    @media (max-width: 800px) { form { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">К подбору</a>
+    <h1><span class="mark" aria-hidden="true">ⓐ</span>Администратор</h1>
+    <form id="login">
+      <label>Логин<input name="username" value="admin" autocomplete="username" required></label>
+      <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Войти</button>
+      <p id="login-error" class="error" hidden></p>
+    </form>
+    <section id="panel" hidden>
+      <button id="logout" class="quiet" type="button">Выйти</button>
+      <h2>Один подрядчик</h2>
+      <form id="add">
+        <label>Название<input name="name" required></label>
+        <label>Город из списка<select id="city"></select></label>
+        <label>Или новый город<input id="city-extra" placeholder="если города нет в списке"></label>
+        <label>Бюджет от, тг<input name="budget_min" inputmode="numeric" required></label>
+        <label>Бюджет до, тг<input name="budget_max" inputmode="numeric" required></label>
+        <label>Свободен с<input name="available_from" type="date" required></label>
+        <label>Свободен по<input name="available_to" type="date" required></label>
+        <label>Сделано работ<input name="done_count" inputmode="numeric" value="0" required></label>
+        <label>Вместимость, гостей<input name="capacity" inputmode="numeric" value="0" required></label>
+        <fieldset><legend>Характер мероприятия</legend><div id="categories" class="choices"></div><label>Свой вариант, через |<input id="category-extra"></label></fieldset>
+        <fieldset><legend>Формат</legend><div id="formats" class="choices"></div><label>Свой вариант, через |<input id="format-extra"></label></fieldset>
+        <fieldset><legend>Кто это</legend><div id="services" class="choices"></div><label>Свой вариант, через |<input id="service-extra"></label></fieldset>
+        <fieldset><legend>Языки</legend><div id="languages" class="choices"></div></fieldset>
+        <button type="submit">Добавить в базу</button>
+        <p id="add-result" hidden></p>
+      </form>
+      <h2>Сразу из файла</h2>
+      <div class="file-card">
+        <p>CSV в UTF-8. Первая строка — заголовки. Несколько значений в одной ячейке пишутся через <code>|</code>.</p>
+        <p><code>name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services</code></p>
+        <input id="file" type="file" accept=".csv,text/csv">
+        <p id="import-result" hidden></p>
+      </div>
+      <h2>База</h2>
+      <div class="wrap"><table id="list"></table></div>
+    </section>
+  </main>
+  <script>
+    const login = document.querySelector("#login");
+    const panel = document.querySelector("#panel");
+    const loginError = document.querySelector("#login-error");
+    const addForm = document.querySelector("#add");
+    const addResult = document.querySelector("#add-result");
+    const importResult = document.querySelector("#import-result");
+    const list = document.querySelector("#list");
+
+    function extra(id) {
+      return document.querySelector(id).value.split("|").map((part) => part.trim()).filter(Boolean);
+    }
+
+    function checked(boxId) {
+      return [...document.querySelectorAll("#" + boxId + " input:checked")].map((input) => input.value);
+    }
+
+    function choices(id, items) {
+      const box = document.querySelector("#" + id);
+      box.replaceChildren();
+      items.forEach((item) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = item.value;
+        const text = document.createElement("span");
+        text.textContent = item.label;
+        label.append(input, text);
+        box.appendChild(label);
+      });
+    }
+
+    async function loadOptions() {
+      const response = await fetch("/api/options?lang=ru");
+      const data = await response.json();
+      const city = document.querySelector("#city");
+      city.replaceChildren();
+      data.cities.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.value;
+        option.textContent = item.label;
+        city.appendChild(option);
+      });
+      choices("categories", data.categories);
+      choices("formats", data.formats);
+      choices("services", data.services);
+      choices("languages", data.languages);
+    }
+
+    function money(value) {
+      return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+
+    async function loadList() {
+      const response = await fetch("/api/admin/contractors");
+      if (response.status === 401) {
+        panel.hidden = true;
+        login.hidden = false;
+        return;
+      }
+      const data = await response.json();
+      list.replaceChildren();
+      const head = document.createElement("tr");
+      ["Название", "Город", "Характер", "Формат", "Бюджет", "Даты", "Работ", "Гостей", ""].forEach((title) => {
+        const cell = document.createElement("th");
+        cell.textContent = title;
+        head.appendChild(cell);
+      });
+      const body = document.createElement("tbody");
+      data.contractors.forEach((item) => {
+        const row = document.createElement("tr");
+        const values = [
+          item.name,
+          item.city,
+          item.categories.join(", "),
+          item.formats.join(", "),
+          money(item.budget_min) + "–" + money(item.budget_max),
+          item.available_from + "–" + item.available_to,
+          String(item.done_count),
+          String(item.capacity)
+        ];
+        values.forEach((value) => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        const action = document.createElement("td");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "quiet";
+        button.textContent = "Удалить";
+        button.addEventListener("click", async () => {
+          await fetch("/api/admin/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: item.id })
+          });
+          loadList();
+        });
+        action.appendChild(button);
+        row.appendChild(action);
+        body.appendChild(row);
+      });
+      const thead = document.createElement("thead");
+      thead.appendChild(head);
+      list.append(thead, body);
+    }
+
+    function showPanel() {
+      login.hidden = true;
+      panel.hidden = false;
+      loadOptions();
+      loadList();
+    }
+
+    login.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      loginError.hidden = true;
+      const payload = Object.fromEntries(new FormData(login));
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        loginError.hidden = false;
+        loginError.textContent = data.error || "Не удалось войти.";
+        return;
+      }
+      showPanel();
+    });
+
+    document.querySelector("#logout").addEventListener("click", async () => {
+      await fetch("/api/admin/logout", { method: "POST" });
+      panel.hidden = true;
+      login.hidden = false;
+    });
+
+    addForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(addForm);
+      const cityExtra = document.querySelector("#city-extra").value.trim();
+      const payload = {
+        name: form.get("name"),
+        city: cityExtra || document.querySelector("#city").value,
+        categories: checked("categories").concat(extra("#category-extra")),
+        formats: checked("formats").concat(extra("#format-extra")),
+        services: checked("services").concat(extra("#service-extra")),
+        languages: checked("languages"),
+        budget_min: form.get("budget_min"),
+        budget_max: form.get("budget_max"),
+        available_from: form.get("available_from"),
+        available_to: form.get("available_to"),
+        done_count: form.get("done_count"),
+        capacity: form.get("capacity")
+      };
+      const response = await fetch("/api/admin/contractors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      addResult.hidden = false;
+      addResult.className = response.ok ? "ok" : "error";
+      addResult.textContent = response.ok ? "Подрядчик добавлен." : (data.error || "Не удалось добавить.");
+      if (response.ok) {
+        addForm.reset();
+        loadOptions();
+        loadList();
+      }
+    });
+
+    document.querySelector("#file").addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const response = await fetch("/api/admin/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/csv; charset=utf-8" },
+        body: await file.text()
+      });
+      const data = await response.json();
+      importResult.hidden = false;
+      importResult.className = response.ok ? "ok" : "error";
+      if (!response.ok) {
+        importResult.textContent = data.error || "Файл не принят.";
+        return;
+      }
+      const problems = data.errors.map((item) => "строка " + item.line + ": " + item.error).join("; ");
+      importResult.textContent = "Добавлено: " + data.added + ". Обновлено: " + data.updated + "." + (problems ? " " + problems : "");
+      event.target.value = "";
+      loadOptions();
+      loadList();
+    });
+
+    fetch("/api/admin/me").then((response) => response.json()).then((data) => {
+      if (data.ok) showPanel();
+    });
+  </script>
+</body>
+</html>

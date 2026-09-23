@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Умный подбор подрядчиков</title>
+  <style>
+    :root { --ink: #222326; --paper: #f5f5f7; --line: rgba(34, 35, 38, 0.12); --muted: #6e6e73; --accent: #ff6700; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 17px; line-height: 1.47; -webkit-font-smoothing: antialiased; }
+    main { max-width: 980px; margin: 0 auto; padding: 56px 24px 88px; }
+    h1 { font-size: 44px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; margin: 0; }
+    .mark { color: var(--accent); margin-right: 10px; font-weight: 500; }
+    .lead { max-width: 38rem; color: var(--muted); margin: 14px 0 0; }
+    .top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+    .admin-link { color: var(--muted); text-decoration: none; font-size: 14px; padding-top: 12px; white-space: nowrap; }
+    .admin-link:hover { color: var(--ink); }
+    .langs { display: inline-flex; gap: 2px; margin-top: 22px; padding: 3px; background: #e8e8ed; border-radius: 999px; }
+    .langs button { background: transparent; color: var(--ink); border: 0; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 500; }
+    .langs button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+    form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; margin: 28px 0 8px; padding: 24px; background: #fff; border-radius: 28px; }
+    label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--muted); }
+    input, select { border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 103, 0, 0.16); }
+    fieldset.checks { grid-column: 1 / -1; margin: 4px 0 0; padding: 0; border: 0; }
+    legend { font-size: 12px; color: var(--muted); padding: 0; margin-bottom: 10px; }
+    #services { display: flex; flex-wrap: wrap; gap: 8px; }
+    #services label { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; background: var(--paper); border-radius: 999px; padding: 8px 12px; }
+    #services input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+    #budget-custom { margin-top: 8px; }
+    button { font: inherit; border: 0; cursor: pointer; }
+    form > button { grid-column: 1 / -1; justify-self: start; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 22px; font-size: 15px; font-weight: 600; }
+    form > button:hover { background: #000; }
+    .error { color: #b42318; }
+    .cards { display: grid; gap: 12px; margin-top: 28px; }
+    article { background: #fff; border-radius: 24px; padding: 22px 24px 20px; }
+    .place { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; }
+    h2 { margin: 12px 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
+    h3 { margin: 40px 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .score { margin: 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+    .wrap { overflow-x: auto; background: #fff; border-radius: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 12px 16px; text-align: left; font-weight: 500; }
+    th { color: var(--muted); font-size: 12px; font-weight: 600; }
+    tbody th { color: var(--ink); }
+    caption { caption-side: bottom; text-align: left; padding: 12px 16px 16px; color: var(--muted); font-size: 13px; }
+    ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    li { background: #fff; border-radius: 16px; padding: 14px 16px; color: var(--ink); }
+    @media (max-width: 800px) {
+      h1 { font-size: 34px; }
+      .top { flex-direction: column; gap: 8px; }
+      form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top">
+      <h1><span class="mark" aria-hidden="true">ⓐ</span><span data-i18n="title">Умный подбор подрядчиков</span></h1>
+      <a class="admin-link" href="/admin" data-i18n="admin">Панель администратора</a>
+    </div>
+    <p class="lead" data-i18n="lead">Выберите город, дату, формат, характер мероприятия, бюджет и, если нужно, кто именно нужен. В список попадают не больше трёх подрядчиков, и только если условия совпали с каталогом.</p>
+    <div class="langs" role="group" data-i18n-label="languages">
+      <button type="button" data-lang="ru" aria-pressed="true">Русский</button>
+      <button type="button" data-lang="kz" aria-pressed="false">Қазақша</button>
+      <button type="button" data-lang="en" aria-pressed="false">English</button>
+    </div>
+    <form id="search">
+      <label><span data-i18n="city">Город</span><select name="city" id="city" required></select></label>
+      <label><span data-i18n="date">Дата</span><input name="date" type="date" value="2026-09-23" required></label>
+      <label><span data-i18n="format">Формат</span><select name="format" id="format" required></select></label>
+      <label><span data-i18n="category">Характер мероприятия</span><select name="category" id="category" required></select></label>
+      <label><span data-i18n="budget">Бюджет, тг</span>
+        <select name="budget" id="budget" required></select>
+        <input id="budget-custom" inputmode="numeric" hidden>
+      </label>
+      <label><span data-i18n="guests">Гостей, от</span><select name="guests" id="guests"></select></label>
+      <label><span data-i18n="eventLanguage">Язык мероприятия</span><select name="language" id="language"></select></label>
+      <fieldset class="checks">
+        <legend data-i18n="who">Кто нужен</legend>
+        <div id="services"></div>
+      </fieldset>
+      <button type="submit" data-i18n="submit">Подобрать</button>
+    </form>
+    <p id="error" class="error" hidden></p>
+    <section id="cards" class="cards"></section>
+    <h3 data-i18n="compare">Сравнение</h3>
+    <div class="wrap"><table id="compare"></table></div>
+    <h3 data-i18n="rejectedTitle">Почему остальные не вошли</h3>
+    <ol id="rejected"></ol>
+  </main>
+  <script>
+    const I18N = {
+      ru: {
+        title: "Умный подбор подрядчиков",
+        admin: "Панель администратора",
+        lead: "Выберите город, дату, формат, характер мероприятия, бюджет и, если нужно, кто именно нужен. В список попадают не больше трёх подрядчиков, и только если условия совпали с каталогом.",
+        who: "Кто нужен",
+        guests: "Гостей, от",
+        eventLanguage: "Язык мероприятия",
+        any: "не важно",
+        customBudget: "другая сумма",
+        languages: "Язык",
+        city: "Город",
+        date: "Дата",
+        format: "Формат",
+        category: "Характер мероприятия",
+        budget: "Бюджет, тг",
+        submit: "Подобрать",
+        compare: "Сравнение",
+        rejectedTitle: "Почему остальные не вошли",
+        empty: "В каталоге нет подрядчика, который проходит все пять условий.",
+        jobs: "Сделано работ",
+        range: "Вилка бюджета",
+        window: "Свободные даты",
+        fit: "Близость бюджета",
+        score: "Счёт",
+        formula: "Счёт = число работ + близость бюджета к середине вилки, от 0 до 1.",
+        failed: "Не удалось подобрать подрядчиков."
+      },
+      kz: {
+        title: "Мердігерлерді ақылды іріктеу",
+        admin: "Әкімші панелі",
+        lead: "Қала, күн, формат, іс-шара сипаты, бюджет және керек адамдарды таңдаңыз. Тізімге ең көбі үш мердігер енеді, әрі тек каталогпен сәйкес келсе.",
+        who: "Кім керек",
+        guests: "Қонақ, кемінде",
+        eventLanguage: "Іс-шара тілі",
+        any: "бәрібір",
+        customBudget: "басқа сома",
+        languages: "Тіл",
+        city: "Қала",
+        date: "Күні",
+        format: "Формат",
+        category: "Іс-шара сипаты",
+        budget: "Бюджет, тг",
+        submit: "Іріктеу",
+        compare: "Салыстыру",
+        rejectedTitle: "Неге қалғандары кірмеді",
+        empty: "Барлық бес шарттан өтетін мердігер каталогта жоқ.",
+        jobs: "Орындалған жұмыстар",
+        range: "Бюджет ауқымы",
+        window: "Бос күндер",
+        fit: "Бюджетке жақындық",
+        score: "Ұпай",
+        formula: "Ұпай = жұмыс саны + бюджеттің ауқым ортасына жақындығы, 0-ден 1-ге дейін.",
+        failed: "Мердігерлерді іріктеу мүмкін болмады."
+      },
+      en: {
+        title: "Smart contractor matching",
+        admin: "Admin panel",
+        lead: "Choose the city, date, format, kind of event, budget, and who you need. At most three contractors are listed, and only when they match the catalog.",
+        who: "Who you need",
+        guests: "Guests, at least",
+        eventLanguage: "Event language",
+        any: "any",
+        customBudget: "other amount",
+        languages: "Language",
+        city: "City",
+        date: "Date",
+        format: "Format",
+        category: "Kind of event",
+        budget: "Budget, KZT",
+        submit: "Match",
+        compare: "Comparison",
+        rejectedTitle: "Why the others did not qualify",
+        empty: "No contractor in the catalog passes all five conditions.",
+        jobs: "Jobs completed",
+        range: "Budget range",
+        window: "Open dates",
+        fit: "Budget fit",
+        score: "Score",
+        formula: "Score = completed jobs + how close the budget is to the middle of the range, from 0 to 1.",
+        failed: "Could not match contractors."
+      }
+    };
+
+    const form = document.querySelector("#search");
+    const budgetSelect = document.querySelector("#budget");
+    const budgetCustom = document.querySelector("#budget-custom");
+    let options = null;
+    const cards = document.querySelector("#cards");
+    const rejected = document.querySelector("#rejected");
+    const error = document.querySelector("#error");
+    const compare = document.querySelector("#compare");
+    let lang = "ru";
+    let requestId = 0;
+
+    function money(value) {
+      return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+
+    function fillSelect(id, items, selected, blank) {
+      const select = document.querySelector("#" + id);
+      const current = selected || select.value;
+      select.replaceChildren();
+      if (blank) {
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = I18N[lang].any;
+        select.appendChild(empty);
+      }
+      items.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = String(item.value);
+        option.textContent = item.label;
+        select.appendChild(option);
+      });
+      if (id === "budget") {
+        const custom = document.createElement("option");
+        custom.value = "custom";
+        custom.textContent = I18N[lang].customBudget;
+        select.appendChild(custom);
+      }
+      const values = [...select.options].map((option) => option.value);
+      select.value = values.includes(current) ? current : (blank ? "" : values[0]);
+    }
+
+    function fillServices(items) {
+      const box = document.querySelector("#services");
+      const selected = new Set([...box.querySelectorAll("input:checked")].map((input) => input.value));
+      box.replaceChildren();
+      items.forEach((item) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.name = "services";
+        input.value = item.value;
+        input.checked = selected.has(item.value);
+        const text = document.createElement("span");
+        text.textContent = item.label;
+        label.append(input, text);
+        box.appendChild(label);
+      });
+    }
+
+    async function loadOptions() {
+      const response = await fetch("/api/options?lang=" + lang);
+      options = await response.json();
+      const keep = (id, fallback) => document.querySelector("#" + id).value || fallback;
+      fillSelect("city", options.cities, keep("city", "Астана"), false);
+      fillSelect("format", options.formats, keep("format", "офлайн"), false);
+      fillSelect("category", options.categories, keep("category", "конференция"), false);
+      fillSelect("budget", options.budgets, keep("budget", "1500000"), false);
+      fillSelect("guests", options.guests, keep("guests", ""), true);
+      fillSelect("language", options.languages, keep("language", ""), true);
+      fillServices(options.services);
+      budgetCustom.hidden = budgetSelect.value !== "custom";
+    }
+
+    function applyChrome() {
+      const text = I18N[lang];
+      document.documentElement.lang = lang === "kz" ? "kk" : lang;
+      document.title = text.title;
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        node.textContent = text[node.dataset.i18n];
+      });
+      document.querySelector("[data-i18n-label]").setAttribute("aria-label", text.languages);
+      document.querySelectorAll("[data-lang]").forEach((button) => {
+        button.setAttribute("aria-pressed", button.dataset.lang === lang ? "true" : "false");
+      });
+    }
+
+    function show(data) {
+      const text = I18N[lang];
+      error.hidden = true;
+      cards.replaceChildren();
+      if (!data.cards.length) {
+        const empty = document.createElement("p");
+        empty.textContent = text.empty;
+        cards.appendChild(empty);
+      }
+      data.cards.forEach((card, index) => {
+        const article = document.createElement("article");
+        const place = document.createElement("p");
+        place.className = "place";
+        place.textContent = String(index + 1);
+        const title = document.createElement("h2");
+        title.textContent = card.name;
+        const body = document.createElement("p");
+        body.textContent = card.reason;
+        const score = document.createElement("p");
+        score.className = "score";
+        score.textContent = text.score + ": " + card.done_count + " + " + card.budget_fit.toFixed(2) + " = " + card.score.toFixed(2);
+        article.append(place, title, body, score);
+        cards.appendChild(article);
+      });
+
+      compare.replaceChildren();
+      if (data.cards.length) {
+        const head = document.createElement("tr");
+        const corner = document.createElement("th");
+        corner.textContent = text.compare;
+        head.appendChild(corner);
+        data.cards.forEach((card) => {
+          const cell = document.createElement("th");
+          cell.textContent = card.name;
+          head.appendChild(cell);
+        });
+        const rows = [
+          [text.jobs, (card) => String(card.done_count)],
+          [text.range, (card) => money(card.budget_min) + "–" + money(card.budget_max)],
+          [text.window, (card) => card.available_from + "–" + card.available_to],
+          [text.fit, (card) => card.budget_fit.toFixed(2)],
+          [text.score, (card) => card.score.toFixed(2)]
+        ];
+        const body = document.createElement("tbody");
+        rows.forEach(([label, value]) => {
+          const row = document.createElement("tr");
+          const name = document.createElement("th");
+          name.textContent = label;
+          row.appendChild(name);
+          data.cards.forEach((card) => {
+            const cell = document.createElement("td");
+            cell.textContent = value(card);
+            row.appendChild(cell);
+          });
+          body.appendChild(row);
+        });
+        const caption = document.createElement("caption");
+        caption.textContent = text.formula;
+        const thead = document.createElement("thead");
+        thead.appendChild(head);
+        compare.append(caption, thead, body);
+      }
+
+      rejected.replaceChildren();
+      data.rejected.forEach((item) => {
+        const line = document.createElement("li");
+        line.textContent = item.name + " — " + item.reason;
+        rejected.appendChild(line);
+      });
+    }
+
+    async function run(event) {
+      if (event) event.preventDefault();
+      const current = ++requestId;
+      const params = new URLSearchParams(new FormData(form));
+      if (params.get("budget") === "custom") params.set("budget", budgetCustom.value.replace(/\s/g, ""));
+      if (!params.get("guests")) params.delete("guests");
+      if (!params.get("language")) params.delete("language");
+      params.set("lang", lang);
+      const response = await fetch("/api/match?" + params.toString());
+      const data = await response.json();
+      if (current !== requestId) return;
+      if (!response.ok) {
+        error.hidden = false;
+        error.textContent = data.error || I18N[lang].failed;
+        return;
+      }
+      show(data);
+    }
+
+    budgetSelect.addEventListener("change", () => {
+      budgetCustom.hidden = budgetSelect.value !== "custom";
+    });
+    document.querySelectorAll("[data-lang]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        lang = button.dataset.lang;
+        applyChrome();
+        await loadOptions();
+        run();
+      });
+    });
+    form.addEventListener("submit", run);
+    applyChrome();
+    loadOptions().then(run);
+  </script>
+</body>
+</html>
