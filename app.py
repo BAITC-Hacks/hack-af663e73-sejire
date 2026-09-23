@@ -17,6 +17,8 @@ import re
 import secrets
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +31,7 @@ DATA = ROOT / "data"
 CATALOG = DATA / "contractors.csv"
 DB = DATA / "contractors.db"
 ADMIN_FILE = DATA / "admin.json"
+AI_FILE = DATA / "ai.json"
 PAGE = ROOT / "static" / "index.html"
 ADMIN_PAGE = ROOT / "static" / "admin.html"
 PORT = int(os.environ.get("PORT", "8080"))
@@ -106,6 +109,9 @@ class Contractor:
     capacity: int
     languages: tuple[str, ...]
     services: tuple[str, ...]
+    busy_from: date | None = None
+    busy_to: date | None = None
+    max_hours: int = 0
 
 
 @dataclass(frozen=True)
@@ -118,11 +124,25 @@ class Query:
     services: tuple[str, ...] = ()
     language: str = ""
     guests: int = 0
+    duration: int = 0
     lang: str = "ru"
+
+
+class FieldError(ValueError):
+    def __init__(self, field: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field
 
 
 def money(value: int) -> str:
     return f"{value:,}".replace(",", " ")
+
+
+def plain_number(raw: object) -> str:
+    text = str("" if raw is None else raw)
+    for char in (" ", "\u00a0", "\u202f", "\u2009"):
+        text = text.replace(char, "")
+    return text.strip()
 
 
 def split_list(raw: str) -> tuple[str, ...]:
@@ -178,10 +198,171 @@ def check_password(username: str, password: str) -> bool:
     return hmac.compare_digest(candidate, record["hash"])
 
 
+def change_password(current: str, new_password: str) -> None:
+    record = admin_record()
+    if not check_password(record["username"], current):
+        raise ValueError("Текущий пароль неверный.")
+    if len(new_password) < 6:
+        raise ValueError("Новый пароль — не короче 6 символов.")
+    if current == new_password:
+        raise ValueError("Новый пароль совпадает с текущим.")
+    salt = secrets.token_bytes(16)
+    payload = {
+        "username": record["username"],
+        "salt": salt.hex(),
+        "hash": hash_password(new_password, salt),
+    }
+    ADMIN_FILE.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def new_session() -> str:
     token = secrets.token_urlsafe(32)
     SESSIONS[token] = time.time() + SESSION_HOURS * 3600
     return token
+
+
+def load_ai() -> dict:
+    empty = {"api_url": "", "api_key": "", "model": ""}
+    if not AI_FILE.exists():
+        return empty
+    try:
+        raw = json.loads(AI_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    return {
+        "api_url": str(raw.get("api_url") or "").strip(),
+        "api_key": str(raw.get("api_key") or "").strip(),
+        "model": str(raw.get("model") or "").strip(),
+    }
+
+
+def save_ai(settings: dict) -> None:
+    DATA.mkdir(exist_ok=True)
+    AI_FILE.write_text(json.dumps(settings, ensure_ascii=False), encoding="utf-8")
+
+
+def ai_public() -> dict:
+    settings = load_ai()
+    return {
+        "api_url": settings["api_url"],
+        "model": settings["model"],
+        "key_set": bool(settings["api_key"]),
+    }
+
+
+def chat_url(raw: str) -> str:
+    url = raw.strip()
+    parts = urlparse(url)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError("Адрес API должен начинаться с http:// или https://.")
+    if parts.path.rstrip("/").endswith("chat/completions"):
+        return url
+    return url.rstrip("/") + "/chat/completions"
+
+
+def joined(raw: object) -> str:
+    if isinstance(raw, str):
+        text = raw.strip()
+        return text or "не указано"
+    if isinstance(raw, list):
+        parts = [str(item).strip() for item in raw if str(item).strip()]
+        return ", ".join(parts) if parts else "не указано"
+    return "не указано"
+
+
+def review_text(payload: dict) -> str:
+    content = payload.get("choices")
+    if isinstance(content, list) and content:
+        message = content[0].get("message") or {}
+        text = message.get("content")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+        if isinstance(text, list):
+            parts = [
+                str(block.get("text") or "").strip()
+                for block in text
+                if isinstance(block, dict) and str(block.get("text") or "").strip()
+            ]
+            if parts:
+                return "\n".join(parts)
+    for key in ("output_text", "text", "result"):
+        if isinstance(payload.get(key), str) and payload[key].strip():
+            return payload[key].strip()
+    error = payload.get("error")
+    if isinstance(error, dict) and error.get("message"):
+        raise ValueError(str(error["message"]))
+    raise ValueError("API ответил без текста проверки.")
+
+
+def check_contractor(raw: dict) -> str:
+    name = str(raw.get("name") or "").strip()
+    if not name:
+        raise ValueError("Сначала укажите название подрядчика.")
+    settings = load_ai()
+    if not settings["api_url"] or not settings["api_key"]:
+        raise ValueError("Сначала сохраните адрес API и ключ. Подбор без них работает как раньше.")
+    url = chat_url(settings["api_url"])
+    model = settings["model"] or "gpt-4o-mini"
+    question = (
+        "Проверь подрядчика по открытым источникам. В первую очередь нужны отзывы о нём и его услугах. "
+        "Если можешь посмотреть 2GIS, Instagram или другой источник, назови источник и только факты из него. "
+        "Если доступа к этим источникам нет, первая фраза должна быть: "
+        "«Живые отзывы из 2GIS и Instagram этим запросом не получены.» "
+        "Не выдумывай оценки, число отзывов, цитаты и ссылки.\n\n"
+        f"Название: {name}\n"
+        f"Город: {str(raw.get('city') or '').strip() or 'не указан'}\n"
+        f"Характер: {joined(raw.get('categories'))}\n"
+        f"Формат: {joined(raw.get('formats'))}\n"
+        f"Услуги: {joined(raw.get('services'))}\n"
+        f"Языки: {joined(raw.get('languages'))}"
+    )
+    body = json.dumps(
+        {
+            "model": model,
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты помогаешь администратору каталога. Этот ответ не выбирает подрядчика "
+                        "и не меняет порядок карточек. Не выдумывай отзывы."
+                    ),
+                },
+                {"role": "user", "content": question},
+            ],
+        }
+    ).encode()
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + settings["api_key"],
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            raw_body = response.read(300_000)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read(20_000).decode("utf-8", "replace")
+        try:
+            parsed = json.loads(detail)
+        except json.JSONDecodeError:
+            parsed = {}
+        message = ""
+        if isinstance(parsed.get("error"), dict):
+            message = str(parsed["error"].get("message") or "")
+        raise ValueError(message or "API не принял запрос. Подбор при этом работает.") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ValueError("Не удалось связаться с API. Подбор при этом работает.") from exc
+    try:
+        parsed = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("API вернул не JSON. Подбор при этом работает.") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("API вернул неожиданный ответ. Подбор при этом работает.")
+    return review_text(parsed)
 
 
 def valid_session(token: str | None) -> bool:
@@ -215,6 +396,13 @@ def init_db() -> None:
             )
             """
         )
+        columns = {row["name"] for row in link.execute("PRAGMA table_info(contractors)")}
+        if "busy_from" not in columns:
+            link.execute("ALTER TABLE contractors ADD COLUMN busy_from TEXT NOT NULL DEFAULT ''")
+        if "busy_to" not in columns:
+            link.execute("ALTER TABLE contractors ADD COLUMN busy_to TEXT NOT NULL DEFAULT ''")
+        if "max_hours" not in columns:
+            link.execute("ALTER TABLE contractors ADD COLUMN max_hours INTEGER NOT NULL DEFAULT 0")
         count = link.execute("SELECT COUNT(*) FROM contractors").fetchone()[0]
         if count == 0 and CATALOG.exists():
             import_csv(CATALOG.read_text(encoding="utf-8-sig"), link)
@@ -235,6 +423,9 @@ def row_to_contractor(row: sqlite3.Row) -> Contractor:
         capacity=row["capacity"],
         languages=split_list(row["languages"]),
         services=split_list(row["services"]),
+        busy_from=optional_day(row["busy_from"]),
+        busy_to=optional_day(row["busy_to"]),
+        max_hours=int(row["max_hours"] or 0),
     )
 
 
@@ -259,6 +450,9 @@ def contractor_public(item: Contractor) -> dict:
         "capacity": item.capacity,
         "languages": list(item.languages),
         "services": list(item.services),
+        "busy_from": item.busy_from.isoformat() if item.busy_from else "",
+        "busy_to": item.busy_to.isoformat() if item.busy_to else "",
+        "max_hours": item.max_hours,
     }
 
 
@@ -304,11 +498,46 @@ def new_id(name: str, taken: set[str]) -> str:
     return candidate
 
 
+def parse_int(raw: object, field: str, label: str, empty_zero: bool = False) -> int:
+    text = plain_number(raw)
+    if empty_zero and text == "":
+        return 0
+    if not text.isdigit():
+        raise FieldError(field, f"Поле «{label}»: укажите число. Пробелы можно, например 1 500 000.")
+    return int(text)
+
+
+def parse_day(raw: object, field: str, label: str) -> date:
+    try:
+        return date.fromisoformat(str(raw or "").strip())
+    except (TypeError, ValueError) as exc:
+        raise FieldError(field, f"Поле «{label}»: укажите дату.") from exc
+
+
+def optional_day(raw: object) -> date | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    return date.fromisoformat(text)
+
+
+def parse_optional_day(raw: object, field: str, label: str) -> date | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError as exc:
+        raise FieldError(field, f"Поле «{label}»: укажите дату.") from exc
+
+
 def parse_contractor(raw: dict, taken: set[str]) -> Contractor:
     name = str(raw.get("name") or "").strip()
     city = str(raw.get("city") or "").strip()
-    if not name or not city:
-        raise ValueError("Нужны название и город.")
+    if not name:
+        raise FieldError("name", "Укажите название.")
+    if not city:
+        raise FieldError("city", "Укажите город.")
     categories = raw.get("categories") or []
     formats = raw.get("formats") or []
     if isinstance(categories, str):
@@ -317,21 +546,28 @@ def parse_contractor(raw: dict, taken: set[str]) -> Contractor:
         formats = split_list(formats)
     categories = tuple(str(item).strip() for item in categories if str(item).strip())
     formats = tuple(str(item).strip() for item in formats if str(item).strip())
-    if not categories or not formats:
-        raise ValueError("Нужны хотя бы одна категория и один формат.")
-    try:
-        budget_min = int(raw["budget_min"])
-        budget_max = int(raw["budget_max"])
-        done_count = int(raw.get("done_count") or 0)
-        capacity = int(raw.get("capacity") or 0)
-        start = date.fromisoformat(str(raw["available_from"]))
-        end = date.fromisoformat(str(raw["available_to"]))
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("Проверьте бюджет, число работ, вместимость и даты.") from exc
-    if budget_min < 0 or budget_max < budget_min or done_count < 0 or capacity < 0:
-        raise ValueError("Бюджет и числа не сходятся.")
+    if not categories:
+        raise FieldError("categories", "Выберите характер мероприятия или напишите свой.")
+    if not formats:
+        raise FieldError("formats", "Выберите формат или напишите свой.")
+    budget_min = parse_int(raw.get("budget_min"), "budget_min", "Бюджет от")
+    budget_max = parse_int(raw.get("budget_max"), "budget_max", "Бюджет до")
+    done_count = parse_int(raw.get("done_count"), "done_count", "Сделано работ", empty_zero=True)
+    capacity = parse_int(raw.get("capacity"), "capacity", "Вместимость", empty_zero=True)
+    start = parse_day(raw.get("available_from"), "available_from", "Свободен с")
+    end = parse_day(raw.get("available_to"), "available_to", "Свободен по")
+    busy_from = parse_optional_day(raw.get("busy_from"), "busy_from", "Занят с")
+    busy_to = parse_optional_day(raw.get("busy_to"), "busy_to", "Занят по")
+    max_hours = parse_int(raw.get("max_hours"), "max_hours", "Максимум часов", empty_zero=True)
+    if budget_max < budget_min:
+        raise FieldError("budget_max", "Бюджет «до» меньше бюджета «от».")
     if end < start:
-        raise ValueError("Дата окончания раньше даты начала.")
+        raise FieldError("available_to", "Дата «свободен по» раньше даты «свободен с».")
+    if (busy_from is None) != (busy_to is None):
+        missing = "busy_to" if busy_from else "busy_from"
+        raise FieldError(missing, "Укажите обе даты занятости: «занят с» и «занят по».")
+    if busy_from and busy_to and busy_to < busy_from:
+        raise FieldError("busy_to", "Дата «занят по» раньше даты «занят с».")
     languages = raw.get("languages") or []
     services = raw.get("services") or []
     if isinstance(languages, str):
@@ -341,7 +577,7 @@ def parse_contractor(raw: dict, taken: set[str]) -> Contractor:
     supplied = str(raw.get("id") or "").strip()
     if supplied:
         if not ID_RE.match(supplied):
-            raise ValueError("Идентификатор: латиница, цифры и дефис, до 40 знаков.")
+            raise FieldError("name", "Не удалось сохранить эту запись. Добавьте её ещё раз.")
         item_id = supplied
     else:
         item_id = new_id(name, taken)
@@ -359,6 +595,9 @@ def parse_contractor(raw: dict, taken: set[str]) -> Contractor:
         capacity=capacity,
         languages=tuple(str(item).strip() for item in languages if str(item).strip()),
         services=tuple(str(item).strip() for item in services if str(item).strip()),
+        busy_from=busy_from,
+        busy_to=busy_to,
+        max_hours=max_hours,
     )
 
 
@@ -368,8 +607,9 @@ def save_contractor(item: Contractor, link: sqlite3.Connection) -> str:
         """
         INSERT INTO contractors (
             id, name, city, categories, formats, budget_min, budget_max,
-            available_from, available_to, done_count, capacity, languages, services
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            available_from, available_to, done_count, capacity, languages, services,
+            busy_from, busy_to, max_hours
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             city = excluded.city,
@@ -382,7 +622,10 @@ def save_contractor(item: Contractor, link: sqlite3.Connection) -> str:
             done_count = excluded.done_count,
             capacity = excluded.capacity,
             languages = excluded.languages,
-            services = excluded.services
+            services = excluded.services,
+            busy_from = excluded.busy_from,
+            busy_to = excluded.busy_to,
+            max_hours = excluded.max_hours
         """,
         (
             item.id,
@@ -398,6 +641,9 @@ def save_contractor(item: Contractor, link: sqlite3.Connection) -> str:
             item.capacity,
             "|".join(item.languages),
             "|".join(item.services),
+            item.busy_from.isoformat() if item.busy_from else "",
+            item.busy_to.isoformat() if item.busy_to else "",
+            item.max_hours,
         ),
     )
     return "updated" if existed else "added"
@@ -437,6 +683,7 @@ TEXT = {
         "fill": "Заполните поле «{name}».",
         "budget": "Бюджет укажите числом в тенге.",
         "date": "Дата нужна в формате ГГГГ-ММ-ДД.",
+        "duration": "Длительность укажите целым числом часов.",
         "city": "Город в каталоге — {catalog}, запрос — {asked}.",
         "budget_fail": "Бюджет {budget} тг вне вилки {min}–{max} тг.",
         "date_fail": "Дата {date} вне окна {start}–{end}.",
@@ -445,6 +692,8 @@ TEXT = {
         "service_fail": "Нет услуг: {missing}. В каталоге: {options}.",
         "language_fail": "Язык «{asked}» не входит в языки каталога: {options}.",
         "guests_fail": "Вместимость {capacity} гостей меньше запроса на {guests}.",
+        "busy_fail": "Дата {date} попадает в занятость {start}–{end}.",
+        "duration_fail": "Длительность {hours} ч больше лимита {max} ч.",
         "reason": (
             "{city}, формат «{fmt}», категория «{cat}». "
             "Бюджет {budget} тг входит в вилку {min}–{max} тг. "
@@ -454,6 +703,8 @@ TEXT = {
         "reason_services": "Нужные услуги есть: {services}.",
         "reason_language": "Язык «{language}» указан в каталоге.",
         "reason_guests": "Вместимость {capacity} гостей покрывает запрос на {guests}.",
+        "reason_busy": "Занятость {start}–{end} не включает дату {date}.",
+        "reason_duration": "Длительность {hours} ч не больше лимита {max} ч.",
         "fields": {
             "city": "город",
             "date": "дата",
@@ -466,6 +717,7 @@ TEXT = {
         "fill": "«{name}» өрісін толтырыңыз.",
         "budget": "Бюджетті теңгемен, санмен көрсетіңіз.",
         "date": "Күн ЖЖЖЖ-АА-КК форматында болуы керек.",
+        "duration": "Ұзақтықты бүтін сағат санымен көрсетіңіз.",
         "city": "Каталогтағы қала — {catalog}, сұраныс — {asked}.",
         "budget_fail": "{budget} тг бюджет {min}–{max} тг ауқымынан тыс.",
         "date_fail": "{date} күні {start}–{end} аралығынан тыс.",
@@ -474,6 +726,8 @@ TEXT = {
         "service_fail": "Мына қызметтер жоқ: {missing}. Каталогта: {options}.",
         "language_fail": "«{asked}» тілі каталог тілдеріне кірмейді: {options}.",
         "guests_fail": "Сыйымдылық {capacity} қонақ, сұраныс {guests}.",
+        "busy_fail": "{date} күні бос емес аралыққа түседі: {start}–{end}.",
+        "duration_fail": "{hours} сағат ұзақтық {max} сағат шегінен ұзақ.",
         "reason": (
             "{city}, «{fmt}» форматы, «{cat}» санаты. "
             "{budget} тг бюджет {min}–{max} тг ауқымына кіреді. "
@@ -483,6 +737,8 @@ TEXT = {
         "reason_services": "Қажетті қызметтер бар: {services}.",
         "reason_language": "«{language}» тілі каталогта көрсетілген.",
         "reason_guests": "{capacity} қонақ сыйымдылығы {guests} сұранысын жабады.",
+        "reason_busy": "Бос емес аралық {start}–{end} {date} күнін қамтымайды.",
+        "reason_duration": "{hours} сағат ұзақтық {max} сағат шегінен аспайды.",
         "fields": {
             "city": "қала",
             "date": "күн",
@@ -495,6 +751,7 @@ TEXT = {
         "fill": "Fill in “{name}”.",
         "budget": "Enter the budget as a number in tenge.",
         "date": "Use the date format YYYY-MM-DD.",
+        "duration": "Enter the duration as a whole number of hours.",
         "city": "Catalog city is {catalog}; the request is {asked}.",
         "budget_fail": "A budget of {budget} KZT is outside {min}–{max} KZT.",
         "date_fail": "The date {date} is outside {start}–{end}.",
@@ -503,6 +760,8 @@ TEXT = {
         "service_fail": "Missing services: {missing}. Catalog lists: {options}.",
         "language_fail": "Language “{asked}” is not among the catalog languages: {options}.",
         "guests_fail": "Capacity of {capacity} guests is below the request for {guests}.",
+        "busy_fail": "The date {date} falls inside the busy window {start}–{end}.",
+        "duration_fail": "A duration of {hours} h is above the catalog limit of {max} h.",
         "reason": (
             "{city}, format “{fmt}”, category “{cat}”. "
             "A budget of {budget} KZT sits inside {min}–{max} KZT. "
@@ -512,6 +771,8 @@ TEXT = {
         "reason_services": "Requested services are covered: {services}.",
         "reason_language": "Language “{language}” is listed in the catalog.",
         "reason_guests": "Capacity of {capacity} guests covers the request for {guests}.",
+        "reason_busy": "The busy window {start}–{end} does not include {date}.",
+        "reason_duration": "A duration of {hours} h is within the limit of {max} h.",
         "fields": {
             "city": "city",
             "date": "date",
@@ -548,6 +809,16 @@ def failure(contractor: Contractor, query: Query) -> tuple[str, str] | None:
             start=contractor.available_from.isoformat(),
             end=contractor.available_to.isoformat(),
         )
+    if (
+        contractor.busy_from
+        and contractor.busy_to
+        and contractor.busy_from <= query.event_date <= contractor.busy_to
+    ):
+        return "busy", text["busy_fail"].format(
+            date=query.event_date.isoformat(),
+            start=contractor.busy_from.isoformat(),
+            end=contractor.busy_to.isoformat(),
+        )
     if not has(query.event_format, contractor.formats):
         return "format", text["format_fail"].format(
             value=query.event_format, options=", ".join(contractor.formats) or "—"
@@ -569,6 +840,8 @@ def failure(contractor: Contractor, query: Query) -> tuple[str, str] | None:
         )
     if query.guests and contractor.capacity < query.guests:
         return "guests", text["guests_fail"].format(capacity=contractor.capacity, guests=query.guests)
+    if query.duration and contractor.max_hours and query.duration > contractor.max_hours:
+        return "duration", text["duration_fail"].format(hours=query.duration, max=contractor.max_hours)
     return None
 
 
@@ -608,6 +881,18 @@ def reason(contractor: Contractor, query: Query) -> str:
         parts.append(text["reason_language"].format(language=query.language))
     if query.guests:
         parts.append(text["reason_guests"].format(capacity=contractor.capacity, guests=query.guests))
+    if contractor.busy_from and contractor.busy_to:
+        parts.append(
+            text["reason_busy"].format(
+                start=contractor.busy_from.isoformat(),
+                end=contractor.busy_to.isoformat(),
+                date=query.event_date.isoformat(),
+            )
+        )
+    if query.duration and contractor.max_hours:
+        parts.append(
+            text["reason_duration"].format(hours=query.duration, max=contractor.max_hours)
+        )
     return " ".join(parts)
 
 
@@ -626,6 +911,9 @@ def search(catalog: list[Contractor], query: Query) -> dict:
                 "budget_max": item.budget_max,
                 "available_from": item.available_from.isoformat(),
                 "available_to": item.available_to.isoformat(),
+                "busy_from": item.busy_from.isoformat() if item.busy_from else "",
+                "busy_to": item.busy_to.isoformat() if item.busy_to else "",
+                "max_hours": item.max_hours,
                 "budget_fit": round(fit, 2),
                 "score": round(item.done_count + fit, 2),
             }
@@ -637,7 +925,7 @@ def search(catalog: list[Contractor], query: Query) -> dict:
             buckets[found[0]] = {"name": item.name, "reason": found[1]}
     rejected = [
         buckets[kind]
-        for kind in ("city", "budget", "date", "format", "category", "service", "language", "guests")
+        for kind in ("city", "budget", "date", "busy", "format", "category", "service", "language", "guests", "duration")
         if kind in buckets
     ][:3]
     return {
@@ -650,6 +938,7 @@ def search(catalog: list[Contractor], query: Query) -> dict:
             "services": list(query.services),
             "language": query.language,
             "guests": query.guests,
+            "duration": query.duration,
         },
         "lang": query.lang,
         "cards": cards,
@@ -667,7 +956,7 @@ def parse_query(params: dict[str, list[str]]) -> Query:
             raise ValueError(text["fill"].format(name=text["fields"][name]))
         return values[0].strip()
 
-    budget_raw = one("budget").replace(" ", "")
+    budget_raw = plain_number(one("budget"))
     if not budget_raw.isdigit():
         raise ValueError(text["budget"])
     try:
@@ -676,6 +965,10 @@ def parse_query(params: dict[str, list[str]]) -> Query:
         raise ValueError(text["date"]) from exc
     guests_raw = ((params.get("guests") or [""])[0] or "").strip()
     guests = int(guests_raw) if guests_raw.isdigit() else 0
+    duration_raw = plain_number((params.get("duration") or [""])[0])
+    if duration_raw and (not duration_raw.isdigit() or int(duration_raw) <= 0):
+        raise ValueError(text["duration"])
+    duration = int(duration_raw) if duration_raw else 0
     services = tuple(item.strip() for item in params.get("services", []) if item.strip())
     language = ((params.get("language") or [""])[0] or "").strip()
     return Query(
@@ -687,6 +980,7 @@ def parse_query(params: dict[str, list[str]]) -> Query:
         services=services,
         language=language,
         guests=guests,
+        duration=duration,
         lang=lang,
     )
 
@@ -721,6 +1015,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send_json({"contractors": [contractor_public(item) for item in load_catalog()]})
             return
+        if parsed.path == "/api/admin/ai":
+            if not self._authorized():
+                self._send_json({"error": "Нужен вход администратора."}, 401)
+                return
+            self._send_json(ai_public())
+            return
         self._send(404, "text/plain; charset=utf-8", "Не найдено".encode())
 
     def do_POST(self) -> None:
@@ -751,6 +1051,15 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/admin/delete":
             self._delete(raw)
             return
+        if parsed.path == "/api/admin/ai":
+            self._save_ai(raw)
+            return
+        if parsed.path == "/api/admin/check":
+            self._check(raw)
+            return
+        if parsed.path == "/api/admin/password":
+            self._password(raw)
+            return
         self._send(404, "text/plain; charset=utf-8", "Не найдено".encode())
 
     def _login(self, raw: bytes) -> None:
@@ -766,6 +1075,55 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send_json({"ok": True}, token=new_session())
 
+    def _password(self, raw: bytes) -> None:
+        try:
+            payload = json.loads(raw.decode() or "{}")
+            current = str(payload.get("current") or "")
+            new_password = str(payload.get("password") or "")
+            change_password(current, new_password)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json({"error": "Не удалось прочитать запрос."}, 400)
+            return
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, 400)
+            return
+        self._send_json({"ok": True})
+
+    def _save_ai(self, raw: bytes) -> None:
+        try:
+            payload = json.loads(raw.decode() or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json({"error": "Не удалось прочитать настройки."}, 400)
+            return
+        current = load_ai()
+        url = str(payload.get("api_url") or "").strip()
+        model = str(payload.get("model") or "").strip()
+        if url:
+            try:
+                chat_url(url)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+        key = current["api_key"]
+        if payload.get("clear_key"):
+            key = ""
+        elif str(payload.get("api_key") or "").strip():
+            key = str(payload.get("api_key") or "").strip()
+        save_ai({"api_url": url, "api_key": key, "model": model})
+        self._send_json({"ok": True, **ai_public()})
+
+    def _check(self, raw: bytes) -> None:
+        try:
+            payload = json.loads(raw.decode() or "{}")
+            text = check_contractor(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json({"error": "Не удалось прочитать карточку."}, 400)
+            return
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, 400)
+            return
+        self._send_json({"ok": True, "text": text})
+
     def _add_one(self, raw: bytes) -> None:
         try:
             payload = json.loads(raw.decode())
@@ -775,6 +1133,9 @@ class Handler(BaseHTTPRequestHandler):
                 state = save_contractor(item, link)
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json({"error": "Не удалось прочитать карточку."}, 400)
+            return
+        except FieldError as exc:
+            self._send_json({"error": str(exc), "field": exc.field}, 400)
             return
         except ValueError as exc:
             self._send_json({"error": str(exc)}, 400)
@@ -860,11 +1221,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    created = not ADMIN_FILE.exists()
     ensure_admin()
     init_db()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Сервис: http://{HOST}:{PORT}")
-    print(f"Админ: http://{HOST}:{PORT}/admin  логин {DEFAULT_ADMIN}  пароль {DEFAULT_PASSWORD}")
+    print(f"Сервис слушает порт {PORT}")
+    if created or check_password(DEFAULT_ADMIN, DEFAULT_PASSWORD):
+        print(f"Админ: логин {DEFAULT_ADMIN}, пароль {DEFAULT_PASSWORD}")
+    else:
+        print(f"Админ: логин {DEFAULT_ADMIN}, пароль изменён в панели")
     server.serve_forever()
 
 

@@ -70,11 +70,12 @@
     <form id="search">
       <label><span data-i18n="city">Город</span><select name="city" id="city" required></select></label>
       <label><span data-i18n="date">Дата</span><input name="date" type="date" value="2026-09-23" required></label>
+      <label><span data-i18n="duration">Длительность, ч</span><input name="duration" inputmode="numeric" placeholder="4"></label>
       <label><span data-i18n="format">Формат</span><select name="format" id="format" required></select></label>
       <label><span data-i18n="category">Характер мероприятия</span><select name="category" id="category" required></select></label>
       <label><span data-i18n="budget">Бюджет, тг</span>
         <select name="budget" id="budget" required></select>
-        <input id="budget-custom" inputmode="numeric" hidden>
+        <input id="budget-custom" inputmode="numeric" placeholder="1 500 000" hidden>
       </label>
       <label><span data-i18n="guests">Гостей, от</span><select name="guests" id="guests"></select></label>
       <label><span data-i18n="eventLanguage">Язык мероприятия</span><select name="language" id="language"></select></label>
@@ -105,6 +106,7 @@
         languages: "Язык",
         city: "Город",
         date: "Дата",
+        duration: "Длительность, ч",
         format: "Формат",
         category: "Характер мероприятия",
         budget: "Бюджет, тг",
@@ -115,6 +117,8 @@
         jobs: "Сделано работ",
         range: "Вилка бюджета",
         window: "Свободные даты",
+        busy: "Занятость",
+        maxHours: "Максимум часов",
         fit: "Близость бюджета",
         score: "Счёт",
         formula: "Счёт = число работ + близость бюджета к середине вилки, от 0 до 1.",
@@ -132,6 +136,7 @@
         languages: "Тіл",
         city: "Қала",
         date: "Күні",
+        duration: "Ұзақтығы, сағ",
         format: "Формат",
         category: "Іс-шара сипаты",
         budget: "Бюджет, тг",
@@ -142,6 +147,8 @@
         jobs: "Орындалған жұмыстар",
         range: "Бюджет ауқымы",
         window: "Бос күндер",
+        busy: "Бос емес күндер",
+        maxHours: "Сағат шегі",
         fit: "Бюджетке жақындық",
         score: "Ұпай",
         formula: "Ұпай = жұмыс саны + бюджеттің ауқым ортасына жақындығы, 0-ден 1-ге дейін.",
@@ -159,6 +166,7 @@
         languages: "Language",
         city: "City",
         date: "Date",
+        duration: "Duration, hours",
         format: "Format",
         category: "Kind of event",
         budget: "Budget, KZT",
@@ -169,6 +177,8 @@
         jobs: "Jobs completed",
         range: "Budget range",
         window: "Open dates",
+        busy: "Busy dates",
+        maxHours: "Hour limit",
         fit: "Budget fit",
         score: "Score",
         formula: "Score = completed jobs + how close the budget is to the middle of the range, from 0 to 1.",
@@ -302,6 +312,8 @@
           [text.jobs, (card) => String(card.done_count)],
           [text.range, (card) => money(card.budget_min) + "–" + money(card.budget_max)],
           [text.window, (card) => card.available_from + "–" + card.available_to],
+          [text.busy, (card) => card.busy_from && card.busy_to ? card.busy_from + "–" + card.busy_to : "—"],
+          [text.maxHours, (card) => card.max_hours ? String(card.max_hours) : "—"],
           [text.fit, (card) => card.budget_fit.toFixed(2)],
           [text.score, (card) => card.score.toFixed(2)]
         ];
@@ -337,7 +349,10 @@
       if (event) event.preventDefault();
       const current = ++requestId;
       const params = new URLSearchParams(new FormData(form));
-      if (params.get("budget") === "custom") params.set("budget", budgetCustom.value.replace(/\s/g, ""));
+      if (params.get("budget") === "custom") params.set("budget", budgetCustom.value.replace(/[\s\u00a0\u202f\u2009]/g, ""));
+      const duration = (params.get("duration") || "").replace(/[\s\u00a0\u202f\u2009]/g, "");
+      if (duration) params.set("duration", duration);
+      else params.delete("duration");
       if (!params.get("guests")) params.delete("guests");
       if (!params.get("language")) params.delete("language");
       params.set("lang", lang);
@@ -362,6 +377,9 @@
         await loadOptions();
         run();
       });
+    });
+    form.addEventListener("input", () => {
+      error.hidden = true;
     });
     form.addEventListener("submit", run);
     applyChrome();

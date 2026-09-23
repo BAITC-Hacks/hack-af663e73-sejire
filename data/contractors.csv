@@ -1,4 +1,4 @@
-id,name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services
+id,name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services,busy_from,busy_to,max_hours
 astana-events,Astana Events,Астана,конференция|форум,офлайн,800000,2500000,2026-09-01,2026-10-15,18,800,русский|қазақша|english,площадка|звук|свет|сцена
 saryarka,Сарыарка Холл,Астана,конференция|банкет,офлайн|гибрид,900000,1800000,2026-09-10,2026-09-30,11,500,русский|қазақша,площадка|звук|кейтеринг
 expo-crew,Expo Crew,Астана,конференция|выставка,офлайн,1000000,2000000,2026-09-01,2026-12-01,7,1000,русский|english,площадка|свет|сцена|видео

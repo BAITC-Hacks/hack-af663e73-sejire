@@ -16,11 +16,21 @@
     .mark { color: var(--accent); margin-right: 10px; font-weight: 500; }
     h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin: 36px 0 12px; }
     form, .file-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 14px; min-width: 0; padding: 24px; background: #fff; border-radius: 28px; }
-    #login { max-width: 440px; margin-top: 28px; grid-template-columns: minmax(0, 1fr); }
+    #login, #password { max-width: 440px; grid-template-columns: minmax(0, 1fr); }
+    #login { margin-top: 28px; }
+    #password { margin-top: 12px; }
     label, legend { font-size: 12px; color: var(--muted); }
     label { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
     input, select { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
     input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 103, 0, 0.16); }
+    input.bad, select.bad { border-color: #b42318; box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.12); }
+    fieldset.bad { outline: 1px solid #b42318; outline-offset: 6px; border-radius: 16px; }
+    .actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+    .hint, #check-result { grid-column: 1 / -1; margin: 0; }
+    .hint { color: var(--muted); font-size: 14px; }
+    #check-result { white-space: pre-wrap; background: var(--paper); border-radius: 16px; padding: 14px 16px; }
+    tr.editing td { background: #fff4ec; }
+    td .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     button { font: inherit; border: 0; cursor: pointer; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 20px; font-size: 15px; font-weight: 600; justify-self: start; }
     button:hover { background: #000; }
     button.quiet { background: var(--paper); color: var(--ink); }
@@ -57,28 +67,57 @@
     </form>
     <section id="panel" hidden>
       <button id="logout" class="quiet" type="button">Выйти</button>
-      <h2>Один подрядчик</h2>
+      <h2>Пароль</h2>
+      <form id="password">
+        <label>Текущий пароль<input name="current" type="password" autocomplete="current-password" required></label>
+        <label>Новый пароль<input name="password" type="password" autocomplete="new-password" minlength="6" required></label>
+        <label>Ещё раз<input name="again" type="password" autocomplete="new-password" minlength="6" required></label>
+        <button type="submit">Сменить пароль</button>
+        <p id="password-result" hidden></p>
+      </form>
+      <h2>API для проверки отзывов</h2>
+      <form id="ai">
+        <label>Адрес API<input id="ai-url" name="api_url" placeholder="https://api.openai.com/v1" autocomplete="off"></label>
+        <label>Ключ<input id="ai-key" name="api_key" type="password" placeholder="не нужен для подбора" autocomplete="off"></label>
+        <label>Модель<input id="ai-model" name="model" placeholder="gpt-4o-mini" autocomplete="off"></label>
+        <p class="hint">Подбор на главной этот адрес не вызывает, и порядок карточек не меняется. Сервис сам не открывает 2GIS и Instagram. Кнопка у карточки отправляет название, город и услуги только сюда. Если API не умеет искать в сети, он должен прямо сказать, что живых отзывов нет, и не выдумывать их. Пустой ключ при сохранении оставляет прежний.</p>
+        <div class="actions">
+          <button type="submit">Сохранить API</button>
+          <button type="button" id="clear-key" class="quiet">Убрать ключ</button>
+        </div>
+        <p id="ai-result" hidden></p>
+      </form>
+      <h2 id="form-title">Новый подрядчик</h2>
       <form id="add">
         <label>Название<input name="name" required></label>
         <label>Город из списка<select id="city"></select></label>
         <label>Или новый город<input id="city-extra" placeholder="если города нет в списке"></label>
-        <label>Бюджет от, тг<input name="budget_min" inputmode="numeric" required></label>
-        <label>Бюджет до, тг<input name="budget_max" inputmode="numeric" required></label>
+        <label>Бюджет от, тг<input name="budget_min" inputmode="numeric" placeholder="1 500 000" required></label>
+        <label>Бюджет до, тг<input name="budget_max" inputmode="numeric" placeholder="2 500 000" required></label>
         <label>Свободен с<input name="available_from" type="date" required></label>
         <label>Свободен по<input name="available_to" type="date" required></label>
+        <label>Занят с<input name="busy_from" type="date"></label>
+        <label>Занят по<input name="busy_to" type="date"></label>
+        <label>Максимум часов<input name="max_hours" inputmode="numeric" placeholder="без ограничения"></label>
+        <p class="hint">Даты занятости можно оставить пустыми: тогда подрядчик не отмечен занятым. «Максимум часов» сравнивается с длительностью на главной. Пустое поле никого не отсекает.</p>
         <label>Сделано работ<input name="done_count" inputmode="numeric" value="0" required></label>
         <label>Вместимость, гостей<input name="capacity" inputmode="numeric" value="0" required></label>
-        <fieldset><legend>Характер мероприятия</legend><div id="categories" class="choices"></div><label>Свой вариант, через |<input id="category-extra"></label></fieldset>
-        <fieldset><legend>Формат</legend><div id="formats" class="choices"></div><label>Свой вариант, через |<input id="format-extra"></label></fieldset>
+        <fieldset data-field="categories"><legend>Характер мероприятия</legend><div id="categories" class="choices"></div><label>Свой вариант, через |<input id="category-extra"></label></fieldset>
+        <fieldset data-field="formats"><legend>Формат</legend><div id="formats" class="choices"></div><label>Свой вариант, через |<input id="format-extra"></label></fieldset>
         <fieldset><legend>Кто это</legend><div id="services" class="choices"></div><label>Свой вариант, через |<input id="service-extra"></label></fieldset>
         <fieldset><legend>Языки</legend><div id="languages" class="choices"></div></fieldset>
-        <button type="submit">Добавить в базу</button>
+        <div class="actions">
+          <button type="submit" id="save">Добавить</button>
+          <button type="button" id="check" class="quiet">Проверить отзывы</button>
+          <button type="button" id="cancel" class="quiet" hidden>Отмена</button>
+        </div>
         <p id="add-result" hidden></p>
+        <p id="check-result" hidden></p>
       </form>
       <h2>Сразу из файла</h2>
       <div class="file-card">
         <p>CSV в UTF-8. Первая строка — заголовки. Несколько значений в одной ячейке пишутся через <code>|</code>.</p>
-        <p><code>name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services</code></p>
+        <p><code>name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services,busy_from,busy_to,max_hours</code></p>
         <input id="file" type="file" accept=".csv,text/csv">
         <p id="import-result" hidden></p>
       </div>
@@ -94,6 +133,111 @@
     const addResult = document.querySelector("#add-result");
     const importResult = document.querySelector("#import-result");
     const list = document.querySelector("#list");
+    let editingId = "";
+
+    function digits(value) {
+      return String(value == null ? "" : value).replace(/[\s\u00a0\u202f\u2009]/g, "");
+    }
+
+    function clearMarks() {
+      addForm.querySelectorAll(".bad").forEach((node) => node.classList.remove("bad"));
+    }
+
+    function hideResult() {
+      addResult.hidden = true;
+      addResult.textContent = "";
+    }
+
+    function markField(field) {
+      clearMarks();
+      if (!field) return;
+      let target = null;
+      if (field === "city") {
+        target = document.querySelector("#city-extra").value.trim()
+          ? document.querySelector("#city-extra")
+          : document.querySelector("#city");
+      } else if (field === "categories" || field === "formats") {
+        target = addForm.querySelector('[data-field="' + field + '"]');
+      } else {
+        target = addForm.querySelector('[name="' + field + '"]');
+      }
+      if (target) target.classList.add("bad");
+    }
+
+    function setMode(editing) {
+      document.querySelector("#form-title").textContent = editing ? "Изменить подрядчика" : "Новый подрядчик";
+      document.querySelector("#save").textContent = editing ? "Сохранить" : "Добавить";
+      document.querySelector("#cancel").hidden = !editing;
+    }
+
+    function stopEdit() {
+      editingId = "";
+      clearMarks();
+      hideResult();
+      addForm.reset();
+      setMode(false);
+      document.querySelectorAll("#list tbody tr").forEach((row) => row.classList.remove("editing"));
+    }
+
+    function applyChecks(boxId, values, extraId) {
+      const known = new Set();
+      document.querySelectorAll("#" + boxId + " input").forEach((input) => {
+        known.add(input.value);
+        input.checked = values.includes(input.value);
+      });
+      if (extraId) {
+        document.querySelector(extraId).value = values.filter((value) => !known.has(value)).join(" | ");
+      }
+    }
+
+    function ensureLanguage(value) {
+      const box = document.querySelector("#languages");
+      const existing = [...box.querySelectorAll("input")].find((input) => input.value === value);
+      if (existing) {
+        existing.checked = true;
+        return;
+      }
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = value;
+      input.checked = true;
+      const text = document.createElement("span");
+      text.textContent = value;
+      label.append(input, text);
+      box.appendChild(label);
+    }
+
+    function fillForm(item) {
+      stopEdit();
+      editingId = item.id;
+      addForm.elements.name.value = item.name;
+      const city = document.querySelector("#city");
+      const knownCity = [...city.options].some((option) => option.value === item.city);
+      if (knownCity) city.value = item.city;
+      else document.querySelector("#city-extra").value = item.city;
+      addForm.elements.budget_min.value = money(item.budget_min);
+      addForm.elements.budget_max.value = money(item.budget_max);
+      addForm.elements.available_from.value = item.available_from;
+      addForm.elements.available_to.value = item.available_to;
+      addForm.elements.busy_from.value = item.busy_from || "";
+      addForm.elements.busy_to.value = item.busy_to || "";
+      addForm.elements.max_hours.value = item.max_hours ? String(item.max_hours) : "";
+      addForm.elements.done_count.value = String(item.done_count);
+      addForm.elements.capacity.value = String(item.capacity);
+      applyChecks("categories", item.categories, "#category-extra");
+      applyChecks("formats", item.formats, "#format-extra");
+      applyChecks("services", item.services, "#service-extra");
+      document.querySelectorAll("#languages input").forEach((input) => {
+        input.checked = false;
+      });
+      item.languages.forEach(ensureLanguage);
+      setMode(true);
+      document.querySelectorAll("#list tbody tr").forEach((row) => {
+        row.classList.toggle("editing", row.dataset.id === item.id);
+      });
+      document.querySelector("#form-title").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     function extra(id) {
       return document.querySelector(id).value.split("|").map((part) => part.trim()).filter(Boolean);
@@ -157,13 +301,15 @@
       const body = document.createElement("tbody");
       data.contractors.forEach((item) => {
         const row = document.createElement("tr");
+        row.dataset.id = item.id;
+        if (item.id === editingId) row.classList.add("editing");
         const values = [
           item.name,
           item.city,
           item.categories.join(", "),
           item.formats.join(", "),
           money(item.budget_min) + "–" + money(item.budget_max),
-          item.available_from + "–" + item.available_to,
+          item.available_from + "–" + item.available_to + (item.busy_from && item.busy_to ? " · занят " + item.busy_from + "–" + item.busy_to : ""),
           String(item.done_count),
           String(item.capacity)
         ];
@@ -173,19 +319,29 @@
           row.appendChild(cell);
         });
         const action = document.createElement("td");
+        const actions = document.createElement("div");
+        actions.className = "row-actions";
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "quiet";
+        edit.textContent = "Изменить";
+        edit.addEventListener("click", () => fillForm(item));
         const button = document.createElement("button");
         button.type = "button";
         button.className = "quiet";
         button.textContent = "Удалить";
         button.addEventListener("click", async () => {
+          if (!window.confirm("Удалить «" + item.name + "»?")) return;
           await fetch("/api/admin/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: item.id })
           });
+          if (editingId === item.id) stopEdit();
           loadList();
         });
-        action.appendChild(button);
+        actions.append(edit, button);
+        action.appendChild(actions);
         row.appendChild(action);
         body.appendChild(row);
       });
@@ -199,6 +355,40 @@
       panel.hidden = false;
       loadOptions();
       loadList();
+      loadAi();
+    }
+
+    async function loadAi() {
+      const response = await fetch("/api/admin/ai");
+      if (!response.ok) return;
+      const data = await response.json();
+      document.querySelector("#ai-url").value = data.api_url || "";
+      document.querySelector("#ai-model").value = data.model || "";
+      const key = document.querySelector("#ai-key");
+      key.value = "";
+      key.placeholder = data.key_set ? "ключ сохранён" : "не нужен для подбора";
+    }
+
+    function draft() {
+      const form = new FormData(addForm);
+      const cityExtra = document.querySelector("#city-extra").value.trim();
+      return {
+        name: form.get("name"),
+        city: cityExtra || document.querySelector("#city").value,
+        categories: checked("categories").concat(extra("#category-extra")),
+        formats: checked("formats").concat(extra("#format-extra")),
+        services: checked("services").concat(extra("#service-extra")),
+        languages: checked("languages"),
+        budget_min: digits(form.get("budget_min")),
+        budget_max: digits(form.get("budget_max")),
+        available_from: form.get("available_from"),
+        available_to: form.get("available_to"),
+        busy_from: form.get("busy_from") || "",
+        busy_to: form.get("busy_to") || "",
+        max_hours: digits(form.get("max_hours")),
+        done_count: digits(form.get("done_count")),
+        capacity: digits(form.get("capacity"))
+      };
     }
 
     login.addEventListener("submit", async (event) => {
@@ -219,44 +409,133 @@
       showPanel();
     });
 
+    const passwordForm = document.querySelector("#password");
+    const passwordResult = document.querySelector("#password-result");
+    passwordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(passwordForm);
+      if (form.get("password") !== form.get("again")) {
+        showNote(passwordResult, false, "Новый пароль и повтор не совпадают.");
+        return;
+      }
+      const response = await fetch("/api/admin/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current: form.get("current"), password: form.get("password") })
+      });
+      const data = await response.json();
+      showNote(passwordResult, response.ok, response.ok ? "Пароль изменён." : (data.error || "Не удалось сменить пароль."));
+      if (response.ok) passwordForm.reset();
+    });
+
     document.querySelector("#logout").addEventListener("click", async () => {
       await fetch("/api/admin/logout", { method: "POST" });
       panel.hidden = true;
       login.hidden = false;
     });
 
+    addForm.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const marked = target.classList.contains("bad") ? target : target.closest(".bad");
+      if (!marked) return;
+      marked.classList.remove("bad");
+      if (!addForm.querySelector(".bad")) hideResult();
+    });
+
+    document.querySelector("#cancel").addEventListener("click", stopEdit);
+
+    const aiForm = document.querySelector("#ai");
+    const aiResult = document.querySelector("#ai-result");
+    const checkResult = document.querySelector("#check-result");
+
+    function showNote(node, ok, text) {
+      node.hidden = false;
+      node.className = ok ? "ok" : "error";
+      node.textContent = text;
+    }
+
+    aiForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(aiForm);
+      const response = await fetch("/api/admin/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_url: form.get("api_url"),
+          api_key: form.get("api_key"),
+          model: form.get("model")
+        })
+      });
+      const data = await response.json();
+      showNote(aiResult, response.ok, response.ok ? "API сохранён. Подбор его не использует." : (data.error || "Не удалось сохранить."));
+      if (response.ok) loadAi();
+    });
+
+    document.querySelector("#clear-key").addEventListener("click", async () => {
+      const form = new FormData(aiForm);
+      const response = await fetch("/api/admin/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_url: form.get("api_url"),
+          model: form.get("model"),
+          clear_key: true
+        })
+      });
+      const data = await response.json();
+      showNote(aiResult, response.ok, response.ok ? "Ключ убран." : (data.error || "Не удалось убрать ключ."));
+      if (response.ok) loadAi();
+    });
+
+    document.querySelector("#check").addEventListener("click", async () => {
+      const button = document.querySelector("#check");
+      button.disabled = true;
+      checkResult.hidden = false;
+      checkResult.className = "hint";
+      checkResult.textContent = "Проверяю…";
+      try {
+        const response = await fetch("/api/admin/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft())
+        });
+        const data = await response.json();
+        checkResult.className = response.ok ? "hint" : "error";
+        checkResult.textContent = response.ok ? data.text : (data.error || "Проверка не выполнена.");
+      } catch (error) {
+        checkResult.className = "error";
+        checkResult.textContent = "Проверка не выполнена. Подбор при этом работает.";
+      }
+      button.disabled = false;
+    });
+
     addForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const form = new FormData(addForm);
-      const cityExtra = document.querySelector("#city-extra").value.trim();
-      const payload = {
-        name: form.get("name"),
-        city: cityExtra || document.querySelector("#city").value,
-        categories: checked("categories").concat(extra("#category-extra")),
-        formats: checked("formats").concat(extra("#format-extra")),
-        services: checked("services").concat(extra("#service-extra")),
-        languages: checked("languages"),
-        budget_min: form.get("budget_min"),
-        budget_max: form.get("budget_max"),
-        available_from: form.get("available_from"),
-        available_to: form.get("available_to"),
-        done_count: form.get("done_count"),
-        capacity: form.get("capacity")
-      };
+      clearMarks();
+      hideResult();
+      const payload = draft();
+      if (editingId) payload.id = editingId;
+      const wasEdit = Boolean(editingId);
       const response = await fetch("/api/admin/contractors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
-      addResult.hidden = false;
-      addResult.className = response.ok ? "ok" : "error";
-      addResult.textContent = response.ok ? "Подрядчик добавлен." : (data.error || "Не удалось добавить.");
-      if (response.ok) {
-        addForm.reset();
-        loadOptions();
-        loadList();
+      if (!response.ok) {
+        addResult.hidden = false;
+        addResult.className = "error";
+        addResult.textContent = data.error || "Не удалось сохранить.";
+        markField(data.field);
+        return;
       }
+      stopEdit();
+      addResult.hidden = false;
+      addResult.className = "ok";
+      addResult.textContent = wasEdit ? "Изменения сохранены." : "Подрядчик добавлен.";
+      loadOptions();
+      loadList();
     });
 
     document.querySelector("#file").addEventListener("change", async (event) => {
