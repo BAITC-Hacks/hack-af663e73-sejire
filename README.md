@@ -1,423 +1,300 @@
 # Умный подбор подрядчиков
 
-Авторы: **Alexey Azovskiy** и **Amir Meirmanov**.
+Авторы: Alexey Azovskiy, Amir Meirmanov.
 
-## Открыть
+Репозиторий: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
 
-| Куда | Ссылка |
-| --- | --- |
-| Сервис | [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) |
-| Панель администратора | [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin) |
-| Репозиторий | [https://github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire) |
+Публичный адрес [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) — временный туннель Cloudflare, а не постоянный хостинг. Страница открывается, только пока запущены сервис и туннель. Админ-панель: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
 
-Публичный адрес — временный туннель Cloudflare. Страница открывается, пока работают сервис и туннель. Логин администратора: `admin`. Пароль первого входа: `Astana2026`. Его можно сменить в панели.
+Сервис рекомендует подрядчиков по анонимизированному каталогу. Бронирования, оплаты, уведомлений подрядчикам и личных кабинетов заказчиков нет. Внешние API, языковые модели и ключи не используются.
 
-## 1. Название
+## Данные
 
-Умный подбор подрядчиков.
+В `data/contractors.csv` 66 профилей. Колонки:
 
-## 2. Краткое описание
+`id`, `anon_name`, `categories`, `city`, `city_imputed`, `synthetic`, `price_from_kzt`, `price_imputed`, `event_formats`, `languages`, `max_hours`, `busy_dates`, `description`.
 
-Сервис помогает организатору мероприятия быстро получить короткий список подрядчиков из каталога. Пользователь задаёт город, дату, длительность, формат, характер мероприятия и бюджет в тенге. В ответ приходит не больше трёх карточек: у каждой есть конкретное объяснение по полям каталога и открытый счёт. Рядом показано, почему другие записи не прошли условия.
+- `categories` — кто подрядчик.
+- `event_formats` — для каких событий он работает: свадьба, той, корпоратив, конференция, юбилей, день рождения.
+- `languages` — язык работы: русский, казахский, английский.
+- `city` — Алматы, Астана или Зарубежье.
+- `price_from_kzt` — цена «от» в тенге, не вилка.
+- `max_hours` — максимум часов на площадке. Пустое значение значит, что ограничение по присутствию неприменимо.
+- `busy_dates` — конкретные занятые даты в диапазоне 23.09.2026–31.12.2026, через `|`.
+- `synthetic`, `city_imputed`, `price_imputed` — признаки синтетического профиля или значения, проставленного при подготовке датасета.
 
-Отдельный вход есть у администратора: он дополняет каталог по одной записи или файлом CSV.
+Поля вроде числа выполненных работ, вместимости гостей и бюджетной вилки в каталоге нет, и подбор их не использует. Если цена пустая, профиль не называется подходящим по бюджету: он остаётся в списке отказов с причиной «цена не указана».
 
-## 3. Что реализовано
+## Как устроен подбор
 
-- Форма подбора: город, дата, длительность в часах, формат, характер мероприятия, бюджет, число гостей, язык мероприятия и услуги. Длительность можно не указывать.
-- Жёсткий фильтр. В список попадает только тот, у кого совпали город, дата внутри окна доступности и вне периода занятости, формат, категория, бюджет внутри вилки, а если заданы — услуги, язык, вместимость и длительность не больше максимума часов.
-- Сортировка по счёту: число сделанных работ плюс близость бюджета к середине вилки. Одинаковый запрос даёт один и тот же порядок.
-- До трёх карточек. На карточке — название, объяснение, счёт вида «работы + близость = итог».
-- Таблица сравнения и до трёх причин отказа. Причины берутся по разным типам: город, бюджет, дата и далее.
-- Интерфейс и тексты объяснений на русском, казахском и английском. Значения в каталоге хранятся как есть, подписи к ним переводятся.
-- Админ-панель: вход, смена пароля, добавление и правка подрядчика, даты занятости «с» и «по», максимум часов, загрузка CSV, удаление строки.
-- Стартовый каталог из девяти подрядчиков в `data/contractors.csv`. Новые значения, которые администратор сохраняет, появляются в списках формы.
+Форма принимает город, дату, тип мероприятия, категорию подрядчика, бюджет в тенге и необязательные длительность и язык.
 
-## 4. Как работает решение
+В результаты попадает только профиль, у которого:
 
-1. При первом запуске `app.py` создаёт SQLite-базу `data/contractors.db`. Если она пустая, строки читаются из `data/contractors.csv`.
-2. Браузер открывает `static/index.html` и запрашивает списки у `GET /api/options`.
-3. Пользователь нажимает «Подобрать». Страница вызывает `GET /api/match` с выбранными полями.
-4. Сервер оставляет только записи, которые проходят все заданные условия.
-5. Оставшиеся сортируются по убыванию счёта, при равенстве — по названию. В ответ уходят первые три.
-6. Для остальных собирается до трёх отказов, по одному на тип причины.
-7. Страница показывает карточки, таблицу сравнения и список отказов.
+- город совпадает;
+- выбранная категория есть в `categories`;
+- выбранный тип есть в `event_formats`;
+- цена известна и `price_from_kzt` не выше бюджета;
+- выбранной даты нет в `busy_dates`;
+- если язык задан, он есть в `languages`;
+- если длительность задана и `max_hours` не пустой, лимит не меньше этой длительности.
 
-Счёт считается так: `число работ + (1 − |бюджет − середина вилки| / ширина вилки)`. Близость лежит от 0 до 1 и на экране округляется до двух знаков.
+Пустой `max_hours` по длительности никого не отсекает.
 
-## 5. Технологии
+Ответ содержит не больше трёх карточек. Порядок детерминированный: наименьшая цена «от», при равной цене — `id`. Это порядок по цене, не оценка качества. Над карточками написано, сколько профилей прошло фильтр и сколько показано. Если город не содержит выбранной категории, исход отдельный: указано, в каких других городах категория есть. Если категория в городе есть, но никто не прошёл, перечислены все отказы и причина каждого: формат, неизвестная цена, бюджет, занятая дата, язык или длительность.
 
-- Python 3, только стандартная библиотека: `http.server`, `sqlite3`, `csv`, `json`, `hashlib` (scrypt), `hmac`, `secrets`.
-- Страницы — HTML, CSS и JavaScript без фреймворков и без сборки: `static/index.html`, `static/admin.html`.
-- Подбор модель не вызывает: объяснение карточки — шаблон из полей каталога. В админке можно отдельно сохранить адрес API. Кнопка «Проверить отзывы» спрашивает этот API про конкретного подрядчика и не меняет список на главной. Без ключа подбор работает как раньше. Сервис сам не открывает 2GIS и Instagram.
-- Публичный адрес отдаёт Cloudflare Tunnel. Приложение само в Cloudflare не обращается.
+Текст карточки собирается из полей этого профиля и параметров запроса: город, категория, цена относительно бюджета, тип, точная дата, языки, лимит часов. Первое предложение описания добавляется как цитата. Для синтетического профиля и для восстановленных города или цены добавляется явная пометка. Восстановленная цена не выдаётся за подтверждённую.
 
-## 6. Архитектура
+Интерфейс подбора и админки переключается на русский, казахский и английский. Названия значений каталога остаются такими, как они записаны в данных; подписи полей переводятся.
 
-```text
-браузер
-  static/index.html  →  GET /api/options, GET /api/match
-  static/admin.html  →  POST /api/admin/login, /password, /contractors, /import, /delete, /check
-        │
-        ▼
-app.py  (ThreadingHTTPServer)
-  search()   фильтр, счёт, три карточки, причины отказа
-  sqlite3    data/contractors.db
-  csv        data/contractors.csv   (начальное наполнение)
-  json       data/admin.json        (хеш пароля, создаётся при первом запуске)
+## Запуск и пароль администратора
+
+Нужен Python 3 из стандартной библиотеки. Зависимости не ставятся.
+
 ```
-
-Сессия администратора хранится в памяти процесса: cookie `session`, HttpOnly, SameSite=Lax, 12 часов. Перезапуск сервера завершает сессию. База и файл пароля в git не входят.
-
-Основные пути:
-
-- `GET /` и `GET /admin` — страницы.
-- `GET /api/options?lang=ru|kz|en` — списки для формы.
-- `GET /api/match` — подбор.
-- `POST /api/admin/login`, `/logout`, `/password`, `/contractors`, `/import`, `/delete`.
-
-`Procfile` запускает сервис командой `python app.py`. Если задана переменная `PORT`, сервер слушает её. Без `PORT` порт 8080.
-
-## 7. Установка и запуск
-
-Нужен Python 3. Сторонние пакеты ставить не требуется.
-
-В каталоге репозитория:
-
-```powershell
 python app.py
 ```
 
-Откройте [сервис](https://sports-flush-saves-condition.trycloudflare.com).
+Порт берётся из переменной `PORT`, адрес — из `HOST`.
 
-Если команда `python` не находится, запустите установленный интерпретатор Python 3. При первом запуске в консоли будут логин `admin` и пароль `Astana2026`. После смены пароля в панели консоль пишет, что пароль изменён.
+Пароля в коде и в журнале нет. При первом запуске, если файла `data/admin.json` ещё нет, задайте переменные окружения и не добавляйте их в git:
 
-## 8. Как проверить решение
+- `ADMIN_PASSWORD` — не короче 6 символов;
+- `ADMIN_USER` — необязательно, по умолчанию `admin`.
 
-Форма уже заполнена примером: Астана, 2026-09-23, офлайн, конференция, 1 500 000 тг. Нажмите «Подобрать».
+`data/admin.json` хранит только соль и хеш scrypt. Если файл уже есть, сервис его не перезаписывает и пароль не печатает. Смена пароля есть в панели: текущий, новый и повтор.
 
-Ожидаемый порядок:
+Вход ограничен: больше 8 неудачных попыток с одного адреса за 10 минут получают отказ. Счётчик хранится в памяти процесса и сбрасывается при перезапуске. Сессия тоже в памяти, cookie `session` стоит 12 часов, с флагами `HttpOnly` и `SameSite=Lax`. Флаг `Secure` добавляется, когда запрос пришёл по HTTPS. Изменения в админке принимаются только с заголовком `X-Requested-With: fetch` и с `Origin`, совпадающим с адресом сервиса. Запросы к базе параметризованы.
 
-| Место | Подрядчик | Счёт |
-| --- | --- | --- |
-| 1 | Astana Events | 18 + 0.91 = 18.91 |
-| 2 | Сарыарка Холл | 11 + 0.83 = 11.83 |
-| 3 | Expo Crew | 7 + 1.00 = 8.00 |
+## Каталог
 
-В отказах: Алматы Ивент (другой город), «Свет до 500 тысяч» (бюджет вне вилки), «Сцена без окна» (дата вне окна).
+В админке можно добавить один профиль, изменить его и удалить после подтверждения. Новая запись без `id` сохраняется как синтетическая.
 
-Второй прогон: тот же город, дата, формат и бюджет, характер — «концерт». В каталоге эта категория есть только у Steppe Stage, поэтому в выдаче одна карточка.
+CSV загружается в два шага. После выбора файла показывается предпросмотр: какие строки будут добавлены, какие обновлены, какие пропущены как повтор `id` или ошибка. Запись начинается только после подтверждения. Повторный импорт той же строки с тем же `id` обновляет её и не создаёт копию. Поддерживаются UTF-8 с BOM, кавычки, запятые и переносы внутри полей. Флаги и `busy_dates` сохраняются. Если при разборе файла возникает ошибка строки, она попадает в отчёт и не записывается; уже разобранные корректные строки этой загрузки сохраняются вместе с отчётом. Неожиданный сбой откатывает транзакцию загрузки, открытой этим запросом.
 
-Админ-панель: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin), логин `admin`, пароль `Astana2026`. В панели его можно сменить: текущий пароль, новый и повтор. Новый пароль — не короче 6 символов.
+После добавления и импорта списки городов и категорий на главной читаются из каталога заново.
 
-## 9. Данные и интеграции
+## Проверенные запросы
 
-Единственный источник подбора — каталог сервиса.
+Кнопки на главной повторяют эти четыре запроса по загруженным 66 профилям.
 
-Файл `data/contractors.csv`, 9 строк. Колонки: `id`, `name`, `city`, `categories`, `formats`, `budget_min`, `budget_max`, `available_from`, `available_to`, `done_count`, `capacity`, `languages`, `services`, `busy_from`, `busy_to`, `max_hours`. Несколько значений в ячейке пишутся через `|`. Даты занятости и максимум часов в стартовом файле пустые.
+1. Плотная категория. Алматы, 14.10.2026, корпоратив, ведущий, бюджет 1 500 000. В городе 10 ведущих, проходят 7. Показаны три с наименьшей ценой: Куррапика, 500 000 тг, `HK-88430`; Мицури Канроджи, 650 000 тг, `HK-44923`; Кики, 900 000 тг, `HK-35215`. Дороже и тоже проходят Сон Гоку, Буллма, Хаул и Джинбей. Не проходят Аня Форджер (дата занята), Софи Хаттер (цена от 2 000 000 тг) и Эмилия (нет формата «корпоратив»).
+2. Редкая категория. Алматы, 14.10.2026, свадьба, флорист, бюджет 500 000. В городе 2 флориста, проходит 1: Тихиро Огино, 250 000 тг, `HK-90001`, синтетический профиль, лимит часов пустой. Тони Тони Чоппер не проходит: 14.10.2026 есть в занятых датах.
+3. Тот же запрос, что в пункте 1, но дата 12.12.2026. Категория в городе есть, проходят 0 из 10. У восьми дата занята, у Софи Хаттер цена выше бюджета, у Эмилии нет формата «корпоратив».
+4. Пустой результат другого вида. Астана, 14.11.2026, конференция, ресторан, бюджет 2 000 000. В Астане ресторанов нет. Категория есть в Алматы.
 
-При пустой базе файл загружается в `data/contractors.db`. Дальше подбор читает базу. CSV до 1 МБ, кодировка UTF-8. Если `id` уже есть, строка обновляется. Без `id` идентификатор строится из названия: латиница, цифры и дефис, до 40 знаков.
+Повтор любого из этих запросов возвращает тот же набор и тот же порядок.
 
-Городов в стартовых списках пять: Астана, Алматы, Шымкент, Караганда, Актобе. В самом файле есть только Астана и Алматы. Администратор может вписать новый город.
+## Ограничения
 
-Подбор читает только каталог сервиса. Платёжных сервисов нет. Необязательный адрес API хранится в `data/ai.json`, в git не входит и в выдачу карточек не попадает.
+Каталог анонимный и покрывает занятость только внутри своего диапазона дат. Цитата в карточке — первое предложение описания, не отдельный отзыв. Сортировка не измеряет качество. Синтетические профили и восстановленные город или цена помечены и не выдаются за подтверждённые сведения. Туннель Cloudflare временный. Сессии и счётчик входа не переживают перезапуск процесса.
 
-## 10. Ограничения
+## Проверки
 
-- Каталог учебный: девять записей, а не живая база поставщиков.
-- Бронирования, оплаты, уведомлений и личных кабинетов заказчика нет.
-- Текст карточки подбора — шаблон с цифрами и полями записи. Проверка отзывов есть только в админке, в счёт не входит и сама не скачивает страницы 2GIS и Instagram.
-- Занятость — один период «занят с / занят по», а не список отдельных дат. Пустой период никого не отсекает. Длительность отсекает запись только если у неё задан максимум часов и запрос длиннее.
-- В ответе не больше трёх карточек и не больше трёх причин отказа.
-- Сессии администратора пропадают после перезапуска.
-- Публичная ссылка работает вместе с сервисом и туннелем. Это не отдельный постоянный хостинг.
-- Пароль `Astana2026` записан в коде как пароль первого запуска. Дальше действует пароль, сохранённый в панели.
+```
+python -m unittest test_match.py
+```
 
-## 11. Ссылка на запущенную версию
-
-- Сервис: [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com)
-- Админ-панель: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin)
+Файл `test_match.py` проверяет загрузку 66 строк и флаги, фильтры, устойчивый порядок по цене и `id`, различие «категории нет» и «все отсеяны», занятые даты, пустой лимит часов, неизвестную цену, импорт исходной схемы CSV, сохранение флагов и обновление по тому же `id`.
 
 ---
 
 # Мердігерлерді ақылды іріктеу
 
-Авторлар: **Alexey Azovskiy** және **Amir Meirmanov**.
+Авторлар: Alexey Azovskiy, Amir Meirmanov.
 
-## Ашу
+Репозиторий: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
 
-| Қайда | Сілтеме |
-| --- | --- |
-| Сервис | [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) |
-| Әкімші панелі | [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin) |
-| Репозиторий | [https://github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire) |
+Жария мекенжай [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) — тұрақты хостинг емес, уақытша Cloudflare туннелі. Бет сервис пен туннель істеп тұрғанда ғана ашылады. Әкімші панелі: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
 
-Жария мекенжай — уақытша Cloudflare туннелі. Бет сервис пен туннель істеп тұрғанда ашылады. Әкімші логині: `admin`. Алғашқы құпиясөз: `Astana2026`. Оны панелде ауыстыруға болады.
+Сервис анонимді каталог бойынша мердігер ұсынады. Брондау, төлем, мердігерге хабарлама және тапсырыс берушінің жеке кабинеті жоқ. Сыртқы API, тілдік модель және кілт қолданылмайды.
 
-## 1. Атауы
+## Деректер
 
-Мердігерлерді ақылды іріктеу.
+`data/contractors.csv` файлында 66 профиль. Бағандар:
 
-## 2. Қысқаша сипаттама
+`id`, `anon_name`, `categories`, `city`, `city_imputed`, `synthetic`, `price_from_kzt`, `price_imputed`, `event_formats`, `languages`, `max_hours`, `busy_dates`, `description`.
 
-Сервис іс-шара ұйымдастырушысына каталогтан қысқа мердігер тізімін береді. Пайдаланушы қала, күн, ұзақтық, формат, іс-шара сипаты және теңгемен бюджетті көрсетеді. Жауапта ең көбі үш карточка болады: әрқайсысында каталог өрістеріне сүйенген түсініктеме және ашық ұпай бар. Қалған жазбалардың неге өтпегені де көрсетіледі.
+- `categories` — мердігер кім.
+- `event_formats` — қай іс-шараға жұмыс істейді: свадьба, той, корпоратив, конференция, юбилей, день рождения.
+- `languages` — жұмыс тілі: русский, казахский, английский.
+- `city` — Алматы, Астана немесе Зарубежье.
+- `price_from_kzt` — теңгедегі бастапқы баға, аралық емес.
+- `max_hours` — алаңдағы сағат шегі. Бос мән шектеу қолданылмайтынын білдіреді.
+- `busy_dates` — 23.09.2026–31.12.2026 аралығындағы нақты бос емес күндер, `|` арқылы.
+- `synthetic`, `city_imputed`, `price_imputed` — синтетикалық профиль немесе дайындау кезінде қойылған мән.
 
-Әкімші бөлек кіреді және каталогты бір-бірлеп немесе CSV файлымен толықтырады.
+Орындалған жұмыс саны, қонақ сыйымдылығы және бюджет аралығы каталогта жоқ, іріктеу оларды қолданбайды. Баға бос болса, профиль бюджетке сай деп аталмайды: ол «баға көрсетілмеген» себебімен бас тарту тізімінде қалады.
 
-## 3. Не іске асырылған
+## Іріктеу қалай жұмыс істейді
 
-- Іріктеу формасы: қала, күн, сағатпен ұзақтық, формат, іс-шара сипаты, бюджет, қонақ саны, іс-шара тілі және қызметтер. Ұзақтықты бос қалдыруға болады.
-- Қатаң сүзгі. Тізімге қаласы сәйкес, күні бос аралықта және бос емес кезеңнен тыс, форматы, санаты және бюджеті ауқым ішінде болған жазба ғана енеді. Қонақ, тіл, қызметтер және сағат шегінен аспайтын ұзақтық берілсе, олар да тексеріледі.
-- Ұпай бойынша сұрыптау: орындалған жұмыс саны мен бюджеттің ауқым ортасына жақындығы. Бірдей сұраныс бірдей рет береді.
-- Ең көбі үш карточка. Карточкада атау, түсініктеме және «жұмыс + жақындық = қорытынды» ұпайы бар.
-- Салыстыру кестесі және ең көбі үш бас тарту себебі. Себептер әртүрлі түрден алынады: қала, бюджет, күн және әрі қарай.
-- Интерфейс пен түсініктемелер орыс, қазақ және ағылшын тілінде. Каталог мәндері сол күйінде сақталады, жазулар аударылады.
-- Әкімші панелі: кіру, құпиясөзді ауыстыру, мердігерді қосу және өзгерту, бос емес күндер «бастап» және «дейін», сағат шегі, CSV жүктеу, жолды жою.
-- `data/contractors.csv` ішінде тоғыз мердігерден тұратын бастапқы каталог. Әкімші сақтаған жаңа мәндер форма тізімдеріне қосылады.
+Пішін қала, күн, іс-шара түрі, мердігер санаты, теңгедегі бюджет және міндетті емес ұзақтық пен тілді қабылдайды.
 
-## 4. Шешім қалай жұмыс істейді
+Нәтижеге тек мына шарттардың бәрі орындалған профиль кіреді:
 
-1. `app.py` алғашқы іске қосылғанда `data/contractors.db` SQLite базасын жасайды. База бос болса, жолдар `data/contractors.csv` файлынан оқылады.
-2. Браузер `static/index.html` бетін ашып, тізімдерді `GET /api/options` арқылы сұрайды.
-3. Пайдаланушы «Іріктеу» түймесін басады. Бет таңдалған өрістермен `GET /api/match` шақырады.
-4. Сервер берілген шарттардың бәрінен өткен жазбаларды ғана қалдырады.
-5. Қалғаны ұпайдың кемуі бойынша, тең болса атауы бойынша сұрыпталады. Жауапқа алғашқы үшеуі кіреді.
-6. Қалғандары үшін әр себеп түрінен бір-бірден, ең көбі үш бас тарту жиналады.
-7. Бет карточкаларды, салыстыру кестесін және бас тарту тізімін көрсетеді.
+- қала сәйкес;
+- таңдалған санат `categories` ішінде;
+- таңдалған түрі `event_formats` ішінде;
+- баға белгілі және `price_from_kzt` бюджеттен аспайды;
+- таңдалған күн `busy_dates` ішінде жоқ;
+- тіл берілсе, ол `languages` ішінде бар;
+- ұзақтық берілсе және `max_hours` бос болмаса, шек осы ұзақтықтан кем емес.
 
-Ұпай былай есептеледі: `жұмыс саны + (1 − |бюджет − ауқым ортасы| / ауқым ені)`. Жақындық 0-ден 1-ге дейін және экранда екі таңбаға дейін дөңгелектенеді.
+Бос `max_hours` ұзақтық бойынша ешкімді шығармайды.
 
-## 5. Технологиялар
+Жауапта ең көбі үш карточка. Рет тұрақты: ең төмен бастапқы баға, баға тең болса `id`. Бұл баға реті, сапа бағасы емес. Карточкалардың үстінде фильтрден қанша профиль өткені және қаншасы көрсетілгені жазылады. Қалада таңдалған санат болмаса, ол басқа нәтиже: санат қай қалаларда бар екені көрсетіледі. Санат қалада бар, бірақ ешкім өтпесе, барлық бас тарту және әрқайсының себебі тізіледі: формат, белгісіз баға, бюджет, бос емес күн, тіл немесе ұзақтық.
 
-- Python 3, тек стандартты кітапхана: `http.server`, `sqlite3`, `csv`, `json`, `hashlib` (scrypt), `hmac`, `secrets`.
-- Беттер — фреймворксыз және жинақсыз HTML, CSS және JavaScript: `static/index.html`, `static/admin.html`.
-- Іріктеу модельді шақырмайды: карточка мәтіні каталог өрістерінен үлгімен құралады. Әкімші панелінде API мекенжайын бөлек сақтауға болады. «Проверить отзывы» түймесі сол API-дан нақты мердігер туралы пікір сұрайды және басты беттегі тізімді өзгертпейді. Кілтсіз іріктеу бұрынғыдай жұмыс істейді. Сервис 2GIS пен Instagram беттерін өзі ашпайды.
-- Жария мекенжайды Cloudflare Tunnel береді. Қолданбаның өзі Cloudflare-ге сұраныс жібермейді.
+Карточка мәтіні осы профиль өрістері мен сұрау параметрлерінен құралады: қала, санат, бюджетке қатысты баға, түрі, нақты күн, тілдер, сағат шегі. Сипаттаманың бірінші сөйлемі дәйексөз ретінде қосылады. Синтетикалық профильге және қалпына келтірілген қалаға немесе бағаға анық белгі қойылады. Қалпына келтірілген баға расталған баға ретінде көрсетілмейді.
 
-## 6. Архитектура
+Іріктеу және әкімші интерфейсі орысша, қазақша және ағылшынша ауысады. Каталог мәндері деректе жазылғанындай қалады, өріс атаулары аударылады.
 
-```text
-браузер
-  static/index.html  →  GET /api/options, GET /api/match
-  static/admin.html  →  POST /api/admin/login, /password, /contractors, /import, /delete, /check
-        │
-        ▼
-app.py  (ThreadingHTTPServer)
-  search()   сүзгі, ұпай, үш карточка, бас тарту себептері
-  sqlite3    data/contractors.db
-  csv        data/contractors.csv   (бастапқы толтыру)
-  json       data/admin.json        (құпиясөз хеші, алғашқы іске қосу кезінде жасалады)
+## Іске қосу және әкімші құпиясөзі
+
+Python 3 және стандартты кітапхана жеткілікті. Тәуелділік орнатылмайды.
+
 ```
-
-Әкімші сессиясы процесс жадында сақталады: `session` cookie, HttpOnly, SameSite=Lax, 12 сағат. Сервер қайта қосылса, сессия аяқталады. База мен құпиясөз файлы git-ке кірмейді.
-
-Негізгі жолдар:
-
-- `GET /` және `GET /admin` — беттер.
-- `GET /api/options?lang=ru|kz|en` — форма тізімдері.
-- `GET /api/match` — іріктеу.
-- `POST /api/admin/login`, `/logout`, `/password`, `/contractors`, `/import`, `/delete`.
-
-`Procfile` сервисті `python app.py` командасымен қосады. `PORT` айнымалысы берілсе, сервер сол портты тыңдайды. `PORT` болмаса, порт 8080.
-
-## 7. Орнату және іске қосу
-
-Python 3 керек. Бөгде пакет орнату қажет емес.
-
-Репозиторий каталогында:
-
-```powershell
 python app.py
 ```
 
-[Сервисті](https://sports-flush-saves-condition.trycloudflare.com) ашыңыз.
+Порт `PORT` айнымалысынан, мекенжай `HOST` айнымалысынан алынады.
 
-`python` командасы табылмаса, орнатылған Python 3 интерпретаторын іске қосыңыз. Алғашқы іске қосу кезінде консольде `admin` логині және `Astana2026` құпиясөзі шығады. Құпиясөз панелде ауыстырылса, консоль оның өзгергенін жазады.
+Құпиясөз кодта да, журналда да жоқ. `data/admin.json` файлы әлі жоқ алғашқы іске қосуда орта айнымалыларын беріңіз және оларды git-ке қоспаңыз:
 
-## 8. Шешімді қалай тексеруге болады
+- `ADMIN_PASSWORD` — кемінде 6 таңба;
+- `ADMIN_USER` — міндетті емес, әдепкісі `admin`.
 
-Формада мысал дайын: Астана, 2026-09-23, офлайн, конференция, 1 500 000 тг. «Іріктеу» түймесін басыңыз.
+`data/admin.json` тек scrypt тұзы мен хешін сақтайды. Файл бар болса, сервис оны қайта жазбайды және құпиясөзді басып шығармайды. Құпиясөзді панелде ауыстыруға болады: ағымдағы, жаңа және қайталау.
 
-Күтілетін рет:
+Кіру шектелген: бір мекенжайдан 10 минутта 8-ден артық сәтсіз әрекет қабылданбайды. Есептегіш процесс жадында және қайта қосу кезінде тазаланады. Сессия да жадта, `session` cookie 12 сағат, `HttpOnly` және `SameSite=Lax`. `Secure` сұрау HTTPS арқылы келсе қосылады. Әкімші өзгерістері тек `X-Requested-With: fetch` тақырыбымен және сервис мекенжайына сәйкес `Origin` болса қабылданады. База сұраулары параметрленген.
 
-| Орын | Мердігер | Ұпай |
-| --- | --- | --- |
-| 1 | Astana Events | 18 + 0.91 = 18.91 |
-| 2 | Сарыарка Холл | 11 + 0.83 = 11.83 |
-| 3 | Expo Crew | 7 + 1.00 = 8.00 |
+## Каталог
 
-Бас тартулар: Алматы Ивент (басқа қала), «Свет до 500 тысяч» (бюджет ауқымнан тыс), «Сцена без окна» (күн аралықтан тыс).
+Әкімші панелінде бір профиль қосуға, өзгертуге және растаудан кейін жоюға болады. `id` жоқ жаңа жазба синтетикалық болып сақталады.
 
-Екінші сынақ: сол қала, күн, формат және бюджет, сипаты — «концерт». Каталогта бұл санат тек Steppe Stage жазбасында бар, сондықтан бір карточка шығады.
+CSV екі қадаммен жүктеледі. Файл таңдалған соң алдын ала қарау шығады: қай жолдар қосылады, қайсысы жаңартылады, қайсысы қайталанған `id` немесе қате ретінде өткізіледі. Жазу тек растаудан кейін басталады. Сол `id` бар жолды қайта импорттау оны жаңартады және көшірме жасамайды. BOM бар UTF-8, тырнақша, үтір және өріс ішіндегі жол ауыстыру қолдау табады. Белгілер мен `busy_dates` сақталады. Жол қатесі есепке түседі және жазылмайды; осы жүктеудің дұрыс жолдары есеппен бірге сақталады. Күтпеген ақау осы сұрау ашқан транзакцияны кері қайтарады.
 
-Әкімші панелі: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin), логин `admin`, құпиясөз `Astana2026`. Панелде оны ауыстыруға болады: ағымдағы құпиясөз, жаңасы және қайталау. Жаңа құпиясөз кемінде 6 таңба.
+Қосқаннан және импорттан кейін басты беттегі қала мен санат тізімдері каталогтан қайта оқылады.
 
-## 9. Деректер және интеграциялар
+## Тексерілген сұраулар
 
-Іріктеудің жалғыз дереккөзі — сервис каталогы.
+Басты беттегі түймелер жүктелген 66 профиль бойынша осы төрт сұрауды қайталайды.
 
-`data/contractors.csv` файлы, 9 жол. Бағандар: `id`, `name`, `city`, `categories`, `formats`, `budget_min`, `budget_max`, `available_from`, `available_to`, `done_count`, `capacity`, `languages`, `services`, `busy_from`, `busy_to`, `max_hours`. Ұяшықтағы бірнеше мән `|` арқылы жазылады. Бастапқы файлда бос емес күндер мен сағат шегі бос.
+1. Жиі санат. Алматы, 14.10.2026, корпоратив, ведущий, бюджет 1 500 000. Қалада 10 жүргізуші, 7-еуі өтеді. Ең төмен бағамен үшеуі көрсетіледі: Куррапика, 500 000 тг, `HK-88430`; Мицури Канроджи, 650 000 тг, `HK-44923`; Кики, 900 000 тг, `HK-35215`. Қымбатырақ, бірақ өтетіндер: Сон Гоку, Буллма, Хаул, Джинбей. Өтпейтіндер: Аня Форджер (күн бос емес), Софи Хаттер (бастапқы баға 2 000 000 тг), Эмилия («корпоратив» түрі жоқ).
+2. Сирек санат. Алматы, 14.10.2026, свадьба, флорист, бюджет 500 000. Қалада 2 флорист, 1-еуі өтеді: Тихиро Огино, 250 000 тг, `HK-90001`, синтетикалық профиль, сағат шегі бос. Тони Тони Чоппер өтпейді: 14.10.2026 бос емес күндерде бар.
+3. 1-тармақтағы сұрау, бірақ күні 12.12.2026. Санат қалада бар, 10-нан 0-і өтеді. Сегізінің күні бос емес, Софи Хаттердің бағасы бюджеттен жоғары, Эмилияда «корпоратив» түрі жоқ.
+4. Басқа бос нәтиже. Астана, 14.11.2026, конференция, ресторан, бюджет 2 000 000. Астанада мейрамхана жоқ. Санат Алматыда бар.
 
-База бос болса, файл `data/contractors.db` ішіне жүктеледі. Одан әрі іріктеу базадан оқиды. CSV 1 МБ-қа дейін, кодтауы UTF-8. `id` бұрыннан бар болса, жол жаңартылады. `id` болмаса, атаудан идентификатор құралады: латиница, сан және дефис, 40 таңбаға дейін.
+Осы сұраулардың кез келгенін қайталау сол жиынды және сол ретті береді.
 
-Бастапқы тізімде бес қала бар: Астана, Алматы, Шымкент, Қарағанды, Ақтөбе. Файлдың өзінде тек Астана мен Алматы бар. Әкімші жаңа қала жаза алады.
+## Шектеулер
 
-Іріктеу тек сервис каталогын оқиды. Төлем сервисі жоқ. Міндетті емес API мекенжайы `data/ai.json` файлында сақталады, git-ке кірмейді және карточкаларға түспейді.
+Каталог анонимді және бос емес күндерді тек өз күн аралығында көрсетеді. Карточкадағы дәйексөз — сипаттаманың бірінші сөйлемі, бөлек пікір емес. Сұрыптау сапаны өлшемейді. Синтетикалық профильдер және қалпына келтірілген қала немесе баға белгіленеді және расталған дерек ретінде берілмейді. Cloudflare туннелі уақытша. Сессия мен кіру есептегіші процесті қайта қосқанда сақталмайды.
 
-## 10. Шектеулер
+## Тексерулер
 
-- Каталог оқу үлгісі: тоғыз жазба, тірі жеткізуші базасы емес.
-- Брондау, төлем, хабарлама және тапсырыс беруші кабинеті жоқ.
-- Іріктеу карточкасының мәтіні — осы жазбаның сандары мен өрістері бар үлгі. Пікірді тексеру тек әкімші панелінде, ұпайға кірмейді және 2GIS пен Instagram беттерін өзі жүктемейді.
-- Бос емес күндер жеке тізім емес, бір «бастап / дейін» кезеңі. Бос кезең ешкімді шығармайды. Ұзақтық жазбаны тек сағат шегі беріліп, сұраныс одан ұзақ болса ғана шығарады.
-- Жауапта үш карточкадан және үш бас тарту себебінен артық болмайды.
-- Әкімші сессиясы сервер қайта қосылғанда жойылады.
-- Жария сілтеме сервиспен және туннельмен бірге жұмыс істейді. Бұл бөлек тұрақты хостинг емес.
-- `Astana2026` құпиясөзі алғашқы іске қосу құпиясөзі ретінде кодта жазылған. Одан әрі панелде сақталған құпиясөз қолданылады.
+```
+python -m unittest test_match.py
+```
 
-## 11. Іске қосылған нұсқаға сілтеме
-
-- Сервис: [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com)
-- Әкімші панелі: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin)
+`test_match.py` 66 жол мен белгілердің жүктелуін, фильтрлерді, баға мен `id` бойынша тұрақты ретті, «санат жоқ» пен «бәрі шығарылды» айырмасын, бос емес күндерді, бос сағат шегін, белгісіз бағаны, бастапқы CSV схемасының импортын, белгілердің сақталуын және сол `id` бойынша жаңартуды тексереді.
 
 ---
 
 # Smart contractor matching
 
-Authors: **Alexey Azovskiy** and **Amir Meirmanov**.
+Authors: Alexey Azovskiy, Amir Meirmanov.
 
-## Open
+Repository: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
 
-| Where | Link |
-| --- | --- |
-| Service | [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) |
-| Admin panel | [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin) |
-| Repository | [https://github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire) |
+The public address [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) is a temporary Cloudflare tunnel, not permanent hosting. The page is available only while the service and the tunnel are running. Admin panel: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
 
-The public address is a temporary Cloudflare tunnel. The page stays available while the service and the tunnel are running. Admin login: `admin`. First password: `Astana2026`. It can be changed in the panel.
+The service recommends contractors from an anonymized catalog. There is no booking, payment, contractor notification, or customer account. No external API, language model, or key is used.
 
-## 1. Name
+## Data
 
-Smart contractor matching.
+`data/contractors.csv` has 66 profiles. Columns:
 
-## 2. Short description
+`id`, `anon_name`, `categories`, `city`, `city_imputed`, `synthetic`, `price_from_kzt`, `price_imputed`, `event_formats`, `languages`, `max_hours`, `busy_dates`, `description`.
 
-The service gives an event organizer a short list of contractors from a catalog. The user sets a city, date, duration, format, kind of event, and budget in tenge. The answer contains at most three cards. Each card has an explanation tied to catalog fields and an open score. The page also shows why other records failed the conditions.
+- `categories` is who the contractor is.
+- `event_formats` is which events they work: свадьба, той, корпоратив, конференция, юбилей, день рождения.
+- `languages` is the working language: русский, казахский, английский.
+- `city` is Алматы, Астана, or Зарубежье.
+- `price_from_kzt` is a starting price in tenge, not a range.
+- `max_hours` is the maximum hours on site. An empty value means a presence limit does not apply.
+- `busy_dates` lists individual busy dates from 23.09.2026 to 31.12.2026, separated by `|`.
+- `synthetic`, `city_imputed`, and `price_imputed` mark a synthetic profile or a value filled while the dataset was prepared.
 
-An administrator signs in separately and adds contractors one by one or from a CSV file.
+Completed-job counts, guest capacity, and budget ranges are not in the catalog and are not used for matching. If the price is empty, the profile is not described as fitting the budget: it stays in the rejection list with the reason that the price is not stated.
 
-## 3. What is implemented
+## How matching works
 
-- A matching form: city, date, duration in hours, format, kind of event, budget, guest count, event language, and services. Duration can be left empty.
-- A hard filter. A record is listed only when the city matches, the date is inside the open window and outside the busy period, and the format, category, and budget range match. Services, language, capacity, and a duration within the hour limit are checked when the user sets them.
-- Ranking by score: completed jobs plus how close the budget is to the middle of the range. The same query always returns the same order.
-- At most three cards. A card shows the name, the explanation, and a score in the form “jobs + fit = total”.
-- A comparison table and up to three rejection reasons, one for each kind: city, budget, date, and so on.
-- Interface and explanation text in Russian, Kazakh, and English. Catalog values stay as stored; their labels are translated.
-- An admin panel: sign-in, password change, add and edit a contractor, busy dates from and until, an hour limit, CSV upload, and row delete.
-- A starter catalog of nine contractors in `data/contractors.csv`. Values saved by the administrator show up in the form lists.
+The form takes a city, a date, an event type, a contractor category, a budget in tenge, and optional duration and language.
 
-## 4. How the solution works
+A profile is recommended only when:
 
-1. On the first run, `app.py` creates the SQLite database `data/contractors.db`. If it is empty, rows are read from `data/contractors.csv`.
-2. The browser opens `static/index.html` and loads the lists from `GET /api/options`.
-3. The user presses “Match”. The page calls `GET /api/match` with the selected fields.
-4. The server keeps only the records that pass every stated condition.
-5. The rest are sorted by score descending, then by name. The response contains the first three.
-6. Up to three rejections are collected for the others, one per reason kind.
-7. The page shows the cards, the comparison table, and the rejection list.
+- the city matches;
+- the chosen category is in `categories`;
+- the chosen type is in `event_formats`;
+- the price is known and `price_from_kzt` is not above the budget;
+- the chosen date is not in `busy_dates`;
+- if a language is set, it is in `languages`;
+- if a duration is set and `max_hours` is not empty, the limit is at least that duration.
 
-The score is `completed jobs + (1 − |budget − range center| / range width)`. The fit is from 0 to 1 and is shown rounded to two decimals.
+An empty `max_hours` does not reject anyone for duration.
 
-## 5. Technologies
+The response has at most three cards. The order is deterministic: lowest starting price, then `id` when prices are equal. This is a price order, not a quality score. Above the cards the page states how many profiles passed and how many are shown. If the city has no contractor of the chosen category, that is a separate outcome and the other cities that have the category are named. If the category exists in the city but nobody passed, every rejection is listed with its reason: format, unknown price, budget, busy date, language, or duration.
 
-- Python 3, standard library only: `http.server`, `sqlite3`, `csv`, `json`, `hashlib` (scrypt), `hmac`, `secrets`.
-- Pages are HTML, CSS, and JavaScript with no framework and no build step: `static/index.html`, `static/admin.html`.
-- Matching does not call a model: card text is a template filled from the catalog row. The admin panel can store an API address separately. “Проверить отзывы” asks that API about one contractor and does not change the public list. Without a key, matching works as before. The service does not open 2GIS or Instagram itself.
-- The public address is served by a Cloudflare Tunnel. The application itself does not call Cloudflare.
+Card text is built from that profile’s fields and the query: city, category, price against the budget, type, exact date, languages, and hour limit. The first sentence of the description is added as a quotation. A synthetic profile and an imputed city or price get an explicit mark. An imputed price is not presented as confirmed.
 
-## 6. Architecture
+The matching page and the admin page switch among Russian, Kazakh, and English. Catalog values stay as stored; field labels are translated.
 
-```text
-browser
-  static/index.html  →  GET /api/options, GET /api/match
-  static/admin.html  →  POST /api/admin/login, /password, /contractors, /import, /delete, /check
-        │
-        ▼
-app.py  (ThreadingHTTPServer)
-  search()   filter, score, three cards, rejection reasons
-  sqlite3    data/contractors.db
-  csv        data/contractors.csv   (initial load)
-  json       data/admin.json        (password hash, created on first run)
+## Run and admin password
+
+Python 3 and the standard library are enough. Nothing is installed.
+
 ```
-
-The admin session lives in process memory: a `session` cookie, HttpOnly, SameSite=Lax, 12 hours. Restarting the server ends the session. The database and the password file are not in git.
-
-Main paths:
-
-- `GET /` and `GET /admin` — pages.
-- `GET /api/options?lang=ru|kz|en` — form lists.
-- `GET /api/match` — matching.
-- `POST /api/admin/login`, `/logout`, `/password`, `/contractors`, `/import`, `/delete`.
-
-The `Procfile` starts the service with `python app.py`. If `PORT` is set, the server listens on that port. Without `PORT`, the port is 8080.
-
-## 7. Install and run
-
-Python 3 is required. No third-party packages need to be installed.
-
-From the repository directory:
-
-```powershell
 python app.py
 ```
 
-Open the [service](https://sports-flush-saves-condition.trycloudflare.com).
+The port comes from `PORT` and the address from `HOST`.
 
-If the `python` command is not found, start the installed Python 3 interpreter. On the first run the console prints the login `admin` and the password `Astana2026`. After a change in the panel, the console says the password was changed.
+There is no password in the code or in the log. On the first run, if `data/admin.json` does not exist yet, set environment variables and do not commit them:
 
-## 8. How to check the solution
+- `ADMIN_PASSWORD`, at least 6 characters;
+- `ADMIN_USER`, optional, `admin` by default.
 
-The form is already filled with the example: Astana, 2026-09-23, in person, conference, 1,500,000 KZT. Press “Match”.
+`data/admin.json` stores only a scrypt salt and hash. If the file already exists, the service does not overwrite it and does not print the password. The panel can change it: current password, new password, and a repeat.
 
-Expected order:
+Login is limited: more than 8 failed attempts from one address within 10 minutes are rejected. The counter lives in process memory and resets on restart. The session is in memory too. The `session` cookie lasts 12 hours and has `HttpOnly` and `SameSite=Lax`. `Secure` is added when the request arrived over HTTPS. Admin changes are accepted only with the header `X-Requested-With: fetch` and an `Origin` that matches the service address. Database statements are parameterized.
 
-| Place | Contractor | Score |
-| --- | --- | --- |
-| 1 | Astana Events | 18 + 0.91 = 18.91 |
-| 2 | Сарыарка Холл | 11 + 0.83 = 11.83 |
-| 3 | Expo Crew | 7 + 1.00 = 8.00 |
+## Catalog
 
-Rejections: Алматы Ивент (another city), «Свет до 500 тысяч» (budget outside the range), «Сцена без окна» (date outside the window).
+The admin panel can add one profile, edit it, and delete it after confirmation. A new record without an `id` is stored as synthetic.
 
-Second run: the same city, date, format, and budget, with the kind set to “concert” (`концерт`). In the catalog only Steppe Stage has that category, so the result is one card.
+CSV upload has two steps. After the file is chosen, a preview shows which rows would be added, which would be updated, and which would be skipped as a repeated `id` or an error. Writing starts only after confirmation. Importing the same row with the same `id` updates it and does not create a copy. UTF-8 with BOM, quotes, commas, and line breaks inside fields are supported. Flags and `busy_dates` are kept. A bad row is reported and not written; the valid rows of that upload are saved together with the report. An unexpected failure rolls back the transaction opened by that request.
 
-Admin panel: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin), login `admin`, password `Astana2026`. It can be changed in the panel: current password, new password, and a repeat. The new password is at least 6 characters.
+After an add or an import, the city and category lists on the main page are read from the catalog again.
 
-## 9. Data and integrations
+## Checked requests
 
-The only source for matching is the service catalog.
+The buttons on the main page repeat these four requests against the loaded 66 profiles.
 
-`data/contractors.csv` has 9 rows. Columns: `id`, `name`, `city`, `categories`, `formats`, `budget_min`, `budget_max`, `available_from`, `available_to`, `done_count`, `capacity`, `languages`, `services`, `busy_from`, `busy_to`, `max_hours`. Several values in one cell are separated by `|`. Busy dates and the hour limit are empty in the starter file.
+1. Dense category. Almaty, 14.10.2026, корпоратив, Ведущий, budget 1 500 000. The city has 10 hosts and 7 pass. The three lowest prices are shown: Куррапика, 500 000 KZT, `HK-88430`; Мицури Канроджи, 650 000 KZT, `HK-44923`; Кики, 900 000 KZT, `HK-35215`. Сон Гоку, Буллма, Хаул, and Джинбей also pass at higher prices. Аня Форджер is busy, Софи Хаттер starts at 2 000 000 KZT, and Эмилия has no корпоратив format.
+2. Rare category. Almaty, 14.10.2026, свадьба, Флорист, budget 500 000. The city has 2 florists and 1 passes: Тихиро Огино, 250 000 KZT, `HK-90001`, a synthetic profile with an empty hour limit. Тони Тони Чоппер does not pass: 14.10.2026 is in the busy dates.
+3. The same request as item 1, but on 12.12.2026. The category exists in the city and 0 of 10 pass. Eight are busy, Софи Хаттер is above the budget, and Эмилия has no корпоратив format.
+4. A different empty result. Astana, 14.11.2026, конференция, Ресторан, budget 2 000 000. Astana has no restaurants. The category exists in Almaty.
 
-An empty database is loaded from that file into `data/contractors.db`. Matching then reads the database. A CSV upload is limited to 1 MB and must be UTF-8. An existing `id` updates the row. Without an `id`, the identifier is built from the name: Latin letters, digits, and hyphens, up to 40 characters.
+Repeating any of these requests returns the same set in the same order.
 
-The starter lists contain five cities: Astana, Almaty, Shymkent, Karaganda, and Aktobe. The file itself contains only Astana and Almaty. An administrator can type a new city.
+## Limitations
 
-Matching reads only the service catalog. There is no payment service. An optional API address is stored in `data/ai.json`, is not in git, and is not used in the cards.
+The catalog is anonymous and its occupancy covers only its own date range. The quotation on a card is the first sentence of the description, not a separate review. The sort does not measure quality. Synthetic profiles and an imputed city or price are marked and are not presented as confirmed facts. The Cloudflare tunnel is temporary. Sessions and the login counter do not survive a process restart.
 
-## 10. Limitations
+## Checks
 
-- The catalog is a sample of nine records, not a live supplier database.
-- There is no booking, payment, notification, or customer account.
-- Public card text is a template filled with that record’s numbers and fields. The review check exists only in the admin panel, does not affect the score, and does not download 2GIS or Instagram pages.
-- A busy period is one range, “busy from / busy until”, not a list of separate dates. An empty period excludes nobody. Duration excludes a record only when that record has an hour limit and the request is longer.
-- A response has at most three cards and at most three rejection reasons.
-- Admin sessions disappear when the server restarts.
-- The public link stays up together with the service and the tunnel. It is not a separate permanent host.
-- The password `Astana2026` is stored in the code as the first-run password. After that, the password saved in the panel is the one that works.
+```
+python -m unittest test_match.py
+```
 
-## 11. Link to the running version
-
-- Service: [https://sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com)
-- Admin panel: [https://sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin)
+`test_match.py` checks loading 66 rows and the flags, the filters, a stable price-then-`id` order, the difference between “no category” and “everyone was rejected”, busy dates, an empty hour limit, an unknown price, import of the original CSV schema, preservation of flags, and an update of the same `id`.

@@ -21,7 +21,8 @@
     #password { margin-top: 12px; }
     label, legend { font-size: 12px; color: var(--muted); }
     label { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
-    input, select { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
+    input, select, textarea { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fbfbfd; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 16px; }
+    textarea { min-height: 96px; resize: vertical; }
     input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 103, 0, 0.16); }
     input.bad, select.bad { border-color: #b42318; box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.12); }
     fieldset.bad { outline: 1px solid #b42318; outline-offset: 6px; border-radius: 16px; }
@@ -36,6 +37,11 @@
     button.quiet { background: var(--paper); color: var(--ink); }
     button.quiet:hover { background: #e8e8ed; }
     #logout { margin-top: 20px; }
+    .langs { display: inline-flex; gap: 2px; margin-top: 16px; padding: 3px; background: #e8e8ed; border-radius: 999px; }
+    .langs button { background: transparent; color: var(--ink); border-radius: 999px; padding: 7px 14px; font-size: 13px; }
+    .langs button[aria-pressed="true"] { background: #fff; }
+    .span, .checkline { grid-column: 1 / -1; }
+    .checkline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
     fieldset { grid-column: 1 / -1; margin: 0; padding: 4px 0 0; border: 0; }
     legend { margin-bottom: 10px; }
     .choices { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -66,66 +72,90 @@
       <p id="login-error" class="error" hidden></p>
     </form>
     <section id="panel" hidden>
-      <button id="logout" class="quiet" type="button">Выйти</button>
-      <h2>Пароль</h2>
+      <div class="langs" id="admin-langs">
+        <button type="button" data-lang="ru">Русский</button>
+        <button type="button" data-lang="kz">Қазақша</button>
+        <button type="button" data-lang="en">English</button>
+      </div>
+      <button id="logout" class="quiet" type="button" data-i18n="logout">Выйти</button>
+      <h2 data-i18n="passwordTitle">Пароль</h2>
       <form id="password">
-        <label>Текущий пароль<input name="current" type="password" autocomplete="current-password" required></label>
-        <label>Новый пароль<input name="password" type="password" autocomplete="new-password" minlength="6" required></label>
-        <label>Ещё раз<input name="again" type="password" autocomplete="new-password" minlength="6" required></label>
-        <button type="submit">Сменить пароль</button>
+        <label><span data-i18n="currentPassword">Текущий пароль</span><input name="current" type="password" autocomplete="current-password" required></label>
+        <label><span data-i18n="newPassword">Новый пароль</span><input name="password" type="password" autocomplete="new-password" minlength="6" required></label>
+        <label><span data-i18n="repeatPassword">Ещё раз</span><input name="again" type="password" autocomplete="new-password" minlength="6" required></label>
+        <button type="submit" data-i18n="changePassword">Сменить пароль</button>
         <p id="password-result" hidden></p>
       </form>
-      <h2>API для проверки отзывов</h2>
-      <form id="ai">
-        <label>Адрес API<input id="ai-url" name="api_url" placeholder="https://api.openai.com/v1" autocomplete="off"></label>
-        <label>Ключ<input id="ai-key" name="api_key" type="password" placeholder="не нужен для подбора" autocomplete="off"></label>
-        <label>Модель<input id="ai-model" name="model" placeholder="gpt-4o-mini" autocomplete="off"></label>
-        <p class="hint">Подбор на главной этот адрес не вызывает, и порядок карточек не меняется. Сервис сам не открывает 2GIS и Instagram. Кнопка у карточки отправляет название, город и услуги только сюда. Если API не умеет искать в сети, он должен прямо сказать, что живых отзывов нет, и не выдумывать их. Пустой ключ при сохранении оставляет прежний.</p>
-        <div class="actions">
-          <button type="submit">Сохранить API</button>
-          <button type="button" id="clear-key" class="quiet">Убрать ключ</button>
-        </div>
-        <p id="ai-result" hidden></p>
-      </form>
-      <h2 id="form-title">Новый подрядчик</h2>
+      <h2 id="form-title" data-i18n="newContractor">Новый подрядчик</h2>
       <form id="add">
-        <label>Название<input name="name" required></label>
-        <label>Город из списка<select id="city"></select></label>
-        <label>Или новый город<input id="city-extra" placeholder="если города нет в списке"></label>
-        <label>Бюджет от, тг<input name="budget_min" inputmode="numeric" placeholder="1 500 000" required></label>
-        <label>Бюджет до, тг<input name="budget_max" inputmode="numeric" placeholder="2 500 000" required></label>
-        <label>Свободен с<input name="available_from" type="date" required></label>
-        <label>Свободен по<input name="available_to" type="date" required></label>
-        <label>Занят с<input name="busy_from" type="date"></label>
-        <label>Занят по<input name="busy_to" type="date"></label>
-        <label>Максимум часов<input name="max_hours" inputmode="numeric" placeholder="без ограничения"></label>
-        <p class="hint">Даты занятости можно оставить пустыми: тогда подрядчик не отмечен занятым. «Максимум часов» сравнивается с длительностью на главной. Пустое поле никого не отсекает.</p>
-        <label>Сделано работ<input name="done_count" inputmode="numeric" value="0" required></label>
-        <label>Вместимость, гостей<input name="capacity" inputmode="numeric" value="0" required></label>
-        <fieldset data-field="categories"><legend>Характер мероприятия</legend><div id="categories" class="choices"></div><label>Свой вариант, через |<input id="category-extra"></label></fieldset>
-        <fieldset data-field="formats"><legend>Формат</legend><div id="formats" class="choices"></div><label>Свой вариант, через |<input id="format-extra"></label></fieldset>
-        <fieldset><legend>Кто это</legend><div id="services" class="choices"></div><label>Свой вариант, через |<input id="service-extra"></label></fieldset>
-        <fieldset><legend>Языки</legend><div id="languages" class="choices"></div></fieldset>
+        <label><span data-i18n="name">Название</span><input name="name" required></label>
+        <label><span data-i18n="cityList">Город из списка</span><select id="city"></select></label>
+        <label><span data-i18n="cityExtra">Или новый город</span><input id="city-extra" data-i18n-placeholder="cityPlaceholder"></label>
+        <label><span data-i18n="price">Цена от, тг</span><input name="price_from" inputmode="numeric" placeholder="500 000"></label>
+        <label><span data-i18n="hours">Максимум часов</span><input name="max_hours" inputmode="numeric" data-i18n-placeholder="hoursPlaceholder"></label>
+        <label class="span"><span data-i18n="busy">Занятые даты через |</span><textarea name="busy_dates" placeholder="2026-10-14|2026-12-12"></textarea></label>
+        <fieldset data-field="categories"><legend data-i18n="categories">Категория подрядчика</legend><div id="categories" class="choices"></div><label><span data-i18n="custom">Свой вариант, через |</span><input id="category-extra"></label></fieldset>
+        <fieldset data-field="formats"><legend data-i18n="formats">Тип мероприятия</legend><div id="formats" class="choices"></div><label><span data-i18n="custom">Свой вариант, через |</span><input id="format-extra"></label></fieldset>
+        <fieldset><legend data-i18n="languages">Языки</legend><div id="languages" class="choices"></div></fieldset>
+        <label class="span"><span data-i18n="description">Описание</span><textarea name="description" required></textarea></label>
+        <label class="checkline"><input type="checkbox" name="synthetic" checked> <span data-i18n="synthetic">Синтетический профиль</span></label>
+        <label class="checkline"><input type="checkbox" name="price_imputed"> <span data-i18n="priceImputed">Цена проставлена при подготовке</span></label>
+        <label class="checkline"><input type="checkbox" name="city_imputed"> <span data-i18n="cityImputed">Город проставлен при подготовке</span></label>
+        <p class="hint" data-i18n="hint">Новая запись всегда сохраняется как синтетическая. Пустая цена не попадает в рекомендации. Пустой лимит часов означает, что присутствие на площадке не требуется.</p>
         <div class="actions">
-          <button type="submit" id="save">Добавить</button>
-          <button type="button" id="check" class="quiet">Проверить отзывы</button>
-          <button type="button" id="cancel" class="quiet" hidden>Отмена</button>
+          <button type="submit" id="save" data-i18n="add">Добавить</button>
+          <button type="button" id="cancel" class="quiet" data-i18n="cancel" hidden>Отмена</button>
         </div>
         <p id="add-result" hidden></p>
-        <p id="check-result" hidden></p>
       </form>
-      <h2>Сразу из файла</h2>
+      <h2 data-i18n="fromFile">Сразу из файла</h2>
       <div class="file-card">
-        <p>CSV в UTF-8. Первая строка — заголовки. Несколько значений в одной ячейке пишутся через <code>|</code>.</p>
-        <p><code>name,city,categories,formats,budget_min,budget_max,available_from,available_to,done_count,capacity,languages,services,busy_from,busy_to,max_hours</code></p>
+        <p data-i18n="csvHelp">CSV в UTF-8. Сначала показывается предпросмотр, запись идёт только после подтверждения. Повтор того же id обновляет строку.</p>
+        <p><code>id,anon_name,categories,city,city_imputed,synthetic,price_from_kzt,price_imputed,event_formats,languages,max_hours,busy_dates,description</code></p>
         <input id="file" type="file" accept=".csv,text/csv">
         <p id="import-result" hidden></p>
+        <button type="button" id="commit-import" hidden data-i18n="commitImport">Записать в каталог</button>
       </div>
       <h2>База</h2>
       <div class="wrap"><table id="list"></table></div>
     </section>
   </main>
   <script>
+    const ADMIN_I18N = {
+      ru: { logout: "Выйти", passwordTitle: "Пароль", currentPassword: "Текущий пароль", newPassword: "Новый пароль", repeatPassword: "Ещё раз", changePassword: "Сменить пароль", newContractor: "Новый подрядчик", editContractor: "Изменить подрядчика", name: "Название", cityList: "Город из списка", cityExtra: "Или новый город", cityPlaceholder: "если города нет в списке", price: "Цена от, тг", hours: "Максимум часов", hoursPlaceholder: "пусто, если присутствие не требуется", busy: "Занятые даты через |", categories: "Категория подрядчика", formats: "Тип мероприятия", custom: "Свой вариант, через |", languages: "Языки", description: "Описание", synthetic: "Синтетический профиль", priceImputed: "Цена проставлена при подготовке", cityImputed: "Город проставлен при подготовке", hint: "Новая запись всегда сохраняется как синтетическая. Пустая цена не попадает в рекомендации. Пустой лимит часов означает, что присутствие на площадке не требуется.", add: "Добавить", save: "Сохранить", cancel: "Отмена", fromFile: "Сразу из файла", csvHelp: "CSV в UTF-8. Сначала показывается предпросмотр, запись идёт только после подтверждения. Повтор того же id обновляет строку.", commitImport: "Записать в каталог", edit: "Изменить", remove: "Удалить", saved: "Изменения сохранены.", added: "Подрядчик добавлен.", mismatch: "Новый пароль и повтор не совпадают.", passwordOk: "Пароль изменён.", confirmDelete: "Удалить «{name}»?" },
+      kz: { logout: "Шығу", passwordTitle: "Құпиясөз", currentPassword: "Ағымдағы құпиясөз", newPassword: "Жаңа құпиясөз", repeatPassword: "Қайталаңыз", changePassword: "Құпиясөзді ауыстыру", newContractor: "Жаңа мердігер", editContractor: "Мердігерді өзгерту", name: "Атауы", cityList: "Тізімдегі қала", cityExtra: "Немесе жаңа қала", cityPlaceholder: "тізімде жоқ болса", price: "Бастапқы баға, тг", hours: "Сағат шегі", hoursPlaceholder: "алаңда болу керек болмаса, бос", busy: "Бос емес күндер, | арқылы", categories: "Мердігер санаты", formats: "Іс-шара түрі", custom: "Өз нұсқаңыз, | арқылы", languages: "Тілдер", description: "Сипаттама", synthetic: "Синтетикалық профиль", priceImputed: "Баға дайындау кезінде қойылған", cityImputed: "Қала дайындау кезінде қойылған", hint: "Жаңа жазба әрқашан синтетикалық болып сақталады. Бос баға ұсынысқа кірмейді. Бос сағат шегі алаңда болу талап етілмейтінін білдіреді.", add: "Қосу", save: "Сақтау", cancel: "Болдырмау", fromFile: "Файлдан", csvHelp: "UTF-8 CSV. Алдымен алдын ала қарау, жазу растаудан кейін. Сол id жолды жаңартады.", commitImport: "Каталогқа жазу", edit: "Өзгерту", remove: "Жою", saved: "Өзгерістер сақталды.", added: "Мердігер қосылды.", mismatch: "Жаңа құпиясөз бен қайталау сәйкес емес.", passwordOk: "Құпиясөз өзгерді.", confirmDelete: "«{name}» жойылсын ба?" },
+      en: { logout: "Sign out", passwordTitle: "Password", currentPassword: "Current password", newPassword: "New password", repeatPassword: "Repeat", changePassword: "Change password", newContractor: "New contractor", editContractor: "Edit contractor", name: "Name", cityList: "City from the list", cityExtra: "Or a new city", cityPlaceholder: "if the city is not listed", price: "Price from, KZT", hours: "Maximum hours", hoursPlaceholder: "empty if presence is not required", busy: "Busy dates separated by |", categories: "Contractor category", formats: "Event type", custom: "Custom value, separated by |", languages: "Languages", description: "Description", synthetic: "Synthetic profile", priceImputed: "Price filled during preparation", cityImputed: "City filled during preparation", hint: "A new record is always stored as synthetic. An empty price is not recommended. An empty hour limit means presence on site is not required.", add: "Add", save: "Save", cancel: "Cancel", fromFile: "From a file", csvHelp: "UTF-8 CSV. A preview is shown first; rows are written only after confirmation. The same id updates the row.", commitImport: "Write to the catalog", edit: "Edit", remove: "Delete", saved: "Changes saved.", added: "Contractor added.", mismatch: "The new password and the repeat do not match.", passwordOk: "Password changed.", confirmDelete: "Delete “{name}”?" }
+    };
+    let adminLang = "ru";
+
+    function adminText() {
+      return ADMIN_I18N[adminLang];
+    }
+
+    function applyAdminChrome() {
+      const text = adminText();
+      document.documentElement.lang = adminLang === "kz" ? "kk" : adminLang;
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        if (text[node.dataset.i18n]) node.textContent = text[node.dataset.i18n];
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+        node.setAttribute("placeholder", text[node.dataset.i18nPlaceholder] || "");
+      });
+      document.querySelectorAll("#admin-langs [data-lang]").forEach((button) => {
+        button.setAttribute("aria-pressed", button.dataset.lang === adminLang ? "true" : "false");
+      });
+      if (!editingId) document.querySelector("#form-title").textContent = text.newContractor;
+      else document.querySelector("#form-title").textContent = text.editContractor;
+      document.querySelector("#save").textContent = editingId ? text.save : text.add;
+    }
+
+    function api(url, options) {
+      const request = options || {};
+      const headers = Object.assign({ "X-Requested-With": "fetch" }, request.headers || {});
+      request.headers = headers;
+      return fetch(url, request);
+    }
+
     const login = document.querySelector("#login");
     const panel = document.querySelector("#panel");
     const loginError = document.querySelector("#login-error");
@@ -165,8 +195,8 @@
     }
 
     function setMode(editing) {
-      document.querySelector("#form-title").textContent = editing ? "Изменить подрядчика" : "Новый подрядчик";
-      document.querySelector("#save").textContent = editing ? "Сохранить" : "Добавить";
+      document.querySelector("#form-title").textContent = editing ? adminText().editContractor : adminText().newContractor;
+      document.querySelector("#save").textContent = editing ? adminText().save : adminText().add;
       document.querySelector("#cancel").hidden = !editing;
     }
 
@@ -216,18 +246,15 @@
       const knownCity = [...city.options].some((option) => option.value === item.city);
       if (knownCity) city.value = item.city;
       else document.querySelector("#city-extra").value = item.city;
-      addForm.elements.budget_min.value = money(item.budget_min);
-      addForm.elements.budget_max.value = money(item.budget_max);
-      addForm.elements.available_from.value = item.available_from;
-      addForm.elements.available_to.value = item.available_to;
-      addForm.elements.busy_from.value = item.busy_from || "";
-      addForm.elements.busy_to.value = item.busy_to || "";
-      addForm.elements.max_hours.value = item.max_hours ? String(item.max_hours) : "";
-      addForm.elements.done_count.value = String(item.done_count);
-      addForm.elements.capacity.value = String(item.capacity);
+      addForm.elements.price_from.value = item.price_from == null ? "" : money(item.price_from);
+      addForm.elements.max_hours.value = item.max_hours == null ? "" : String(item.max_hours);
+      addForm.elements.busy_dates.value = (item.busy_dates || []).join("|");
+      addForm.elements.description.value = item.description || "";
+      addForm.elements.synthetic.checked = Boolean(item.synthetic);
+      addForm.elements.price_imputed.checked = Boolean(item.price_imputed);
+      addForm.elements.city_imputed.checked = Boolean(item.city_imputed);
       applyChecks("categories", item.categories, "#category-extra");
       applyChecks("formats", item.formats, "#format-extra");
-      applyChecks("services", item.services, "#service-extra");
       document.querySelectorAll("#languages input").forEach((input) => {
         input.checked = false;
       });
@@ -263,7 +290,7 @@
     }
 
     async function loadOptions() {
-      const response = await fetch("/api/options?lang=ru");
+      const response = await fetch("/api/options?lang=" + adminLang);
       const data = await response.json();
       const city = document.querySelector("#city");
       city.replaceChildren();
@@ -275,7 +302,6 @@
       });
       choices("categories", data.categories);
       choices("formats", data.formats);
-      choices("services", data.services);
       choices("languages", data.languages);
     }
 
@@ -284,7 +310,7 @@
     }
 
     async function loadList() {
-      const response = await fetch("/api/admin/contractors");
+      const response = await api("/api/admin/contractors");
       if (response.status === 401) {
         panel.hidden = true;
         login.hidden = false;
@@ -293,7 +319,7 @@
       const data = await response.json();
       list.replaceChildren();
       const head = document.createElement("tr");
-      ["Название", "Город", "Характер", "Формат", "Бюджет", "Даты", "Работ", "Гостей", ""].forEach((title) => {
+      [adminText().name, adminText().cityList, adminText().categories, adminText().formats, adminText().price, adminText().synthetic, ""].forEach((title) => {
         const cell = document.createElement("th");
         cell.textContent = title;
         head.appendChild(cell);
@@ -308,10 +334,8 @@
           item.city,
           item.categories.join(", "),
           item.formats.join(", "),
-          money(item.budget_min) + "–" + money(item.budget_max),
-          item.available_from + "–" + item.available_to + (item.busy_from && item.busy_to ? " · занят " + item.busy_from + "–" + item.busy_to : ""),
-          String(item.done_count),
-          String(item.capacity)
+          item.price_from == null ? "—" : money(item.price_from),
+          item.synthetic ? adminText().synthetic : ""
         ];
         values.forEach((value) => {
           const cell = document.createElement("td");
@@ -324,15 +348,15 @@
         const edit = document.createElement("button");
         edit.type = "button";
         edit.className = "quiet";
-        edit.textContent = "Изменить";
+        edit.textContent = adminText().edit;
         edit.addEventListener("click", () => fillForm(item));
         const button = document.createElement("button");
         button.type = "button";
         button.className = "quiet";
-        button.textContent = "Удалить";
+        button.textContent = adminText().remove;
         button.addEventListener("click", async () => {
-          if (!window.confirm("Удалить «" + item.name + "»?")) return;
-          await fetch("/api/admin/delete", {
+          if (!window.confirm(adminText().confirmDelete.replace("{name}", item.name))) return;
+          await api("/api/admin/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: item.id })
@@ -355,18 +379,6 @@
       panel.hidden = false;
       loadOptions();
       loadList();
-      loadAi();
-    }
-
-    async function loadAi() {
-      const response = await fetch("/api/admin/ai");
-      if (!response.ok) return;
-      const data = await response.json();
-      document.querySelector("#ai-url").value = data.api_url || "";
-      document.querySelector("#ai-model").value = data.model || "";
-      const key = document.querySelector("#ai-key");
-      key.value = "";
-      key.placeholder = data.key_set ? "ключ сохранён" : "не нужен для подбора";
     }
 
     function draft() {
@@ -377,17 +389,14 @@
         city: cityExtra || document.querySelector("#city").value,
         categories: checked("categories").concat(extra("#category-extra")),
         formats: checked("formats").concat(extra("#format-extra")),
-        services: checked("services").concat(extra("#service-extra")),
         languages: checked("languages"),
-        budget_min: digits(form.get("budget_min")),
-        budget_max: digits(form.get("budget_max")),
-        available_from: form.get("available_from"),
-        available_to: form.get("available_to"),
-        busy_from: form.get("busy_from") || "",
-        busy_to: form.get("busy_to") || "",
-        max_hours: digits(form.get("max_hours")),
-        done_count: digits(form.get("done_count")),
-        capacity: digits(form.get("capacity"))
+        price_from: form.get("price_from"),
+        busy_dates: form.get("busy_dates") || "",
+        max_hours: form.get("max_hours") || "",
+        description: form.get("description") || "",
+        synthetic: addForm.elements.synthetic.checked,
+        price_imputed: addForm.elements.price_imputed.checked,
+        city_imputed: addForm.elements.city_imputed.checked
       };
     }
 
@@ -395,7 +404,7 @@
       event.preventDefault();
       loginError.hidden = true;
       const payload = Object.fromEntries(new FormData(login));
-      const response = await fetch("/api/admin/login", {
+      const response = await api("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -415,21 +424,21 @@
       event.preventDefault();
       const form = new FormData(passwordForm);
       if (form.get("password") !== form.get("again")) {
-        showNote(passwordResult, false, "Новый пароль и повтор не совпадают.");
+        showNote(passwordResult, false, adminText().mismatch);
         return;
       }
-      const response = await fetch("/api/admin/password", {
+      const response = await api("/api/admin/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current: form.get("current"), password: form.get("password") })
       });
       const data = await response.json();
-      showNote(passwordResult, response.ok, response.ok ? "Пароль изменён." : (data.error || "Не удалось сменить пароль."));
+      showNote(passwordResult, response.ok, response.ok ? adminText().passwordOk : (data.error || adminText().mismatch));
       if (response.ok) passwordForm.reset();
     });
 
     document.querySelector("#logout").addEventListener("click", async () => {
-      await fetch("/api/admin/logout", { method: "POST" });
+      await api("/api/admin/logout", { method: "POST" });
       panel.hidden = true;
       login.hidden = false;
     });
@@ -445,69 +454,19 @@
 
     document.querySelector("#cancel").addEventListener("click", stopEdit);
 
-    const aiForm = document.querySelector("#ai");
-    const aiResult = document.querySelector("#ai-result");
-    const checkResult = document.querySelector("#check-result");
-
     function showNote(node, ok, text) {
       node.hidden = false;
       node.className = ok ? "ok" : "error";
       node.textContent = text;
     }
 
-    aiForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(aiForm);
-      const response = await fetch("/api/admin/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_url: form.get("api_url"),
-          api_key: form.get("api_key"),
-          model: form.get("model")
-        })
+    document.querySelectorAll("#admin-langs [data-lang]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        adminLang = button.dataset.lang;
+        applyAdminChrome();
+        await loadOptions();
+        await loadList();
       });
-      const data = await response.json();
-      showNote(aiResult, response.ok, response.ok ? "API сохранён. Подбор его не использует." : (data.error || "Не удалось сохранить."));
-      if (response.ok) loadAi();
-    });
-
-    document.querySelector("#clear-key").addEventListener("click", async () => {
-      const form = new FormData(aiForm);
-      const response = await fetch("/api/admin/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_url: form.get("api_url"),
-          model: form.get("model"),
-          clear_key: true
-        })
-      });
-      const data = await response.json();
-      showNote(aiResult, response.ok, response.ok ? "Ключ убран." : (data.error || "Не удалось убрать ключ."));
-      if (response.ok) loadAi();
-    });
-
-    document.querySelector("#check").addEventListener("click", async () => {
-      const button = document.querySelector("#check");
-      button.disabled = true;
-      checkResult.hidden = false;
-      checkResult.className = "hint";
-      checkResult.textContent = "Проверяю…";
-      try {
-        const response = await fetch("/api/admin/check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft())
-        });
-        const data = await response.json();
-        checkResult.className = response.ok ? "hint" : "error";
-        checkResult.textContent = response.ok ? data.text : (data.error || "Проверка не выполнена.");
-      } catch (error) {
-        checkResult.className = "error";
-        checkResult.textContent = "Проверка не выполнена. Подбор при этом работает.";
-      }
-      button.disabled = false;
     });
 
     addForm.addEventListener("submit", async (event) => {
@@ -517,7 +476,7 @@
       const payload = draft();
       if (editingId) payload.id = editingId;
       const wasEdit = Boolean(editingId);
-      const response = await fetch("/api/admin/contractors", {
+      const response = await api("/api/admin/contractors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -533,18 +492,24 @@
       stopEdit();
       addResult.hidden = false;
       addResult.className = "ok";
-      addResult.textContent = wasEdit ? "Изменения сохранены." : "Подрядчик добавлен.";
+      addResult.textContent = wasEdit ? adminText().saved : adminText().added;
       loadOptions();
       loadList();
     });
 
+    let pendingCsv = "";
+    const commitImport = document.querySelector("#commit-import");
+
     document.querySelector("#file").addEventListener("change", async (event) => {
       const file = event.target.files[0];
+      pendingCsv = "";
+      commitImport.hidden = true;
       if (!file) return;
-      const response = await fetch("/api/admin/import", {
+      const text = await file.text();
+      const response = await api("/api/admin/import-preview", {
         method: "POST",
         headers: { "Content-Type": "text/csv; charset=utf-8" },
-        body: await file.text()
+        body: text
       });
       const data = await response.json();
       importResult.hidden = false;
@@ -553,13 +518,41 @@
         importResult.textContent = data.error || "Файл не принят.";
         return;
       }
-      const problems = data.errors.map((item) => "строка " + item.line + ": " + item.error).join("; ");
-      importResult.textContent = "Добавлено: " + data.added + ". Обновлено: " + data.updated + "." + (problems ? " " + problems : "");
-      event.target.value = "";
+      const sample = (data.rows || []).slice(0, 12).map((row) => {
+        const name = row.name ? " " + row.name : "";
+        const problem = row.error ? " — " + row.error : "";
+        return "строка " + row.line + " " + row.state + name + problem;
+      }).join("; ");
+      const problems = (data.errors || []).map((item) => "строка " + item.line + ": " + item.error).join("; ");
+      importResult.textContent = "Предпросмотр. Добавить: " + data.added + ". Обновить: " + data.updated + ". Пропустить: " + data.skipped + ". " + sample + (problems && !sample ? " " + problems : "");
+      pendingCsv = text;
+      commitImport.hidden = false;
+    });
+
+    commitImport.addEventListener("click", async () => {
+      if (!pendingCsv) return;
+      const response = await api("/api/admin/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/csv; charset=utf-8" },
+        body: pendingCsv
+      });
+      const data = await response.json();
+      importResult.hidden = false;
+      importResult.className = response.ok ? "ok" : "error";
+      if (!response.ok) {
+        importResult.textContent = data.error || "Файл не принят.";
+        return;
+      }
+      const problems = (data.errors || []).map((item) => "строка " + item.line + ": " + item.error).join("; ");
+      importResult.textContent = "Добавлено: " + data.added + ". Обновлено: " + data.updated + ". Пропущено: " + data.skipped + "." + (problems ? " " + problems : "");
+      pendingCsv = "";
+      commitImport.hidden = true;
+      document.querySelector("#file").value = "";
       loadOptions();
       loadList();
     });
 
+    applyAdminChrome();
     fetch("/api/admin/me").then((response) => response.json()).then((data) => {
       if (data.ok) showPanel();
     });

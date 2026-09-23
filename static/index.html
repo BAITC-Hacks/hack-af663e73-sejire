@@ -33,6 +33,16 @@
     form > button { grid-column: 1 / -1; justify-self: start; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 22px; font-size: 15px; font-weight: 600; }
     form > button:hover { background: #000; }
     .error { color: #b42318; }
+    .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .presets button { background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; }
+    .presets button:hover { background: #fff4ec; }
+    #outcome { margin: 22px 0 0; padding: 16px 18px; background: #fff; border-radius: 18px; }
+    #outcome.matched { box-shadow: inset 3px 0 0 var(--accent); }
+    #outcome.blocked, #outcome.no_category { box-shadow: inset 3px 0 0 #b42318; }
+    .meta { margin: 0; color: var(--muted); font-size: 14px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .badge { font-size: 12px; background: var(--paper); border-radius: 999px; padding: 4px 10px; }
+    .badge.synthetic { background: #fff1e8; color: #9a3412; font-weight: 600; }
     .cards { display: grid; gap: 12px; margin-top: 28px; }
     article { background: #fff; border-radius: 24px; padding: 22px 24px 20px; }
     .place { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; }
@@ -61,7 +71,13 @@
       <h1><span class="mark" aria-hidden="true">ⓐ</span><span data-i18n="title">Умный подбор подрядчиков</span></h1>
       <a class="admin-link" href="/admin" data-i18n="admin">Панель администратора</a>
     </div>
-    <p class="lead" data-i18n="lead">Выберите город, дату, формат, характер мероприятия, бюджет и, если нужно, кто именно нужен. В список попадают не больше трёх подрядчиков, и только если условия совпали с каталогом.</p>
+    <p class="lead" data-i18n="lead">Укажите город, дату, тип мероприятия, категорию подрядчика и бюджет. Длительность и язык можно не заполнять. В ответе не больше трёх карточек, и только из тех, кто свободен в эту дату.</p>
+    <div class="presets">
+      <button type="button" data-preset="dense" data-i18n="presetDense">Плотная категория</button>
+      <button type="button" data-preset="rare" data-i18n="presetRare">Редкая категория</button>
+      <button type="button" data-preset="empty" data-i18n="presetEmpty">Все заняты</button>
+      <button type="button" data-preset="missing" data-i18n="presetMissing">Нет категории в городе</button>
+    </div>
     <div class="langs" role="group" data-i18n-label="languages">
       <button type="button" data-lang="ru" aria-pressed="true">Русский</button>
       <button type="button" data-lang="kz" aria-pressed="false">Қазақша</button>
@@ -69,27 +85,20 @@
     </div>
     <form id="search">
       <label><span data-i18n="city">Город</span><select name="city" id="city" required></select></label>
-      <label><span data-i18n="date">Дата</span><input name="date" type="date" value="2026-09-23" required></label>
-      <label><span data-i18n="duration">Длительность, ч</span><input name="duration" inputmode="numeric" placeholder="4"></label>
-      <label><span data-i18n="format">Формат</span><select name="format" id="format" required></select></label>
-      <label><span data-i18n="category">Характер мероприятия</span><select name="category" id="category" required></select></label>
-      <label><span data-i18n="budget">Бюджет, тг</span>
-        <select name="budget" id="budget" required></select>
-        <input id="budget-custom" inputmode="numeric" placeholder="1 500 000" hidden>
-      </label>
-      <label><span data-i18n="guests">Гостей, от</span><select name="guests" id="guests"></select></label>
-      <label><span data-i18n="eventLanguage">Язык мероприятия</span><select name="language" id="language"></select></label>
-      <fieldset class="checks">
-        <legend data-i18n="who">Кто нужен</legend>
-        <div id="services"></div>
-      </fieldset>
+      <label><span data-i18n="date">Дата</span><input name="date" id="date" type="date" value="2026-10-14" required></label>
+      <label><span data-i18n="format">Тип мероприятия</span><select name="format" id="format" required></select></label>
+      <label><span data-i18n="category">Категория подрядчика</span><select name="category" id="category" required></select></label>
+      <label><span data-i18n="budget">Бюджет, тг</span><input name="budget" id="budget" inputmode="numeric" value="1 500 000" required></label>
+      <label><span data-i18n="duration">Длительность, ч</span><input name="duration" id="duration" inputmode="numeric" data-i18n-placeholder="optional"></label>
+      <label><span data-i18n="eventLanguage">Язык</span><select name="language" id="language"></select></label>
       <button type="submit" data-i18n="submit">Подобрать</button>
     </form>
     <p id="error" class="error" hidden></p>
+    <p id="outcome" hidden></p>
     <section id="cards" class="cards"></section>
-    <h3 data-i18n="compare">Сравнение</h3>
+    <h3 id="compare-title" data-i18n="compare">Сравнение</h3>
     <div class="wrap"><table id="compare"></table></div>
-    <h3 data-i18n="rejectedTitle">Почему остальные не вошли</h3>
+    <h3 id="rejected-title" data-i18n="rejectedTitle">Почему остальные не вошли</h3>
     <ol id="rejected"></ol>
   </main>
   <script>
@@ -97,103 +106,114 @@
       ru: {
         title: "Умный подбор подрядчиков",
         admin: "Панель администратора",
-        lead: "Выберите город, дату, формат, характер мероприятия, бюджет и, если нужно, кто именно нужен. В список попадают не больше трёх подрядчиков, и только если условия совпали с каталогом.",
-        who: "Кто нужен",
-        guests: "Гостей, от",
-        eventLanguage: "Язык мероприятия",
-        any: "не важно",
-        customBudget: "другая сумма",
-        languages: "Язык",
+        lead: "Укажите город, дату, тип мероприятия, категорию подрядчика и бюджет. Длительность и язык можно не заполнять. В ответе не больше трёх карточек, и только из тех, кто свободен в эту дату.",
+        languages: "Язык интерфейса",
+        presetDense: "Плотная категория",
+        presetRare: "Редкая категория",
+        presetEmpty: "Та же заявка, 12 декабря",
+        presetMissing: "Нет категории в городе",
         city: "Город",
         date: "Дата",
-        duration: "Длительность, ч",
-        format: "Формат",
-        category: "Характер мероприятия",
+        format: "Тип мероприятия",
+        category: "Категория подрядчика",
         budget: "Бюджет, тг",
+        duration: "Длительность, ч",
+        optional: "не обязательно",
+        eventLanguage: "Язык",
+        any: "не важно",
         submit: "Подобрать",
         compare: "Сравнение",
-        rejectedTitle: "Почему остальные не вошли",
-        empty: "В каталоге нет подрядчика, который проходит все пять условий.",
-        jobs: "Сделано работ",
-        range: "Вилка бюджета",
-        window: "Свободные даты",
-        busy: "Занятость",
-        maxHours: "Максимум часов",
-        fit: "Близость бюджета",
-        score: "Счёт",
-        formula: "Счёт = число работ + близость бюджета к середине вилки, от 0 до 1.",
+        rejectedTitle: "Кто из этой категории не прошёл",
+        price: "Цена от, тг",
+        langs: "Языки",
+        hours: "Лимит часов",
+        hoursOpen: "не задан",
+        flags: "Пометки",
+        synthetic: "синтетический профиль",
+        priceImputed: "цена ориентировочная",
+        cityImputed: "город проставлен при подготовке",
+        order: "Порядок: наименьшая цена «от», затем id. Это не оценка качества.",
         failed: "Не удалось подобрать подрядчиков."
       },
       kz: {
         title: "Мердігерлерді ақылды іріктеу",
         admin: "Әкімші панелі",
-        lead: "Қала, күн, формат, іс-шара сипаты, бюджет және керек адамдарды таңдаңыз. Тізімге ең көбі үш мердігер енеді, әрі тек каталогпен сәйкес келсе.",
-        who: "Кім керек",
-        guests: "Қонақ, кемінде",
-        eventLanguage: "Іс-шара тілі",
-        any: "бәрібір",
-        customBudget: "басқа сома",
-        languages: "Тіл",
+        lead: "Қала, күн, іс-шара түрі, мердігер санаты және бюджетті көрсетіңіз. Ұзақтық пен тілді бос қалдыруға болады. Жауапта ең көбі үш карточка, әрі сол күні бос болғандар ғана.",
+        languages: "Интерфейс тілі",
+        presetDense: "Жиі санат",
+        presetRare: "Сирек санат",
+        presetEmpty: "Сол өтінім, 12 желтоқсан",
+        presetMissing: "Қалада санат жоқ",
         city: "Қала",
         date: "Күні",
-        duration: "Ұзақтығы, сағ",
-        format: "Формат",
-        category: "Іс-шара сипаты",
+        format: "Іс-шара түрі",
+        category: "Мердігер санаты",
         budget: "Бюджет, тг",
+        duration: "Ұзақтығы, сағ",
+        optional: "міндетті емес",
+        eventLanguage: "Тіл",
+        any: "бәрібір",
         submit: "Іріктеу",
         compare: "Салыстыру",
-        rejectedTitle: "Неге қалғандары кірмеді",
-        empty: "Барлық бес шарттан өтетін мердігер каталогта жоқ.",
-        jobs: "Орындалған жұмыстар",
-        range: "Бюджет ауқымы",
-        window: "Бос күндер",
-        busy: "Бос емес күндер",
-        maxHours: "Сағат шегі",
-        fit: "Бюджетке жақындық",
-        score: "Ұпай",
-        formula: "Ұпай = жұмыс саны + бюджеттің ауқым ортасына жақындығы, 0-ден 1-ге дейін.",
+        rejectedTitle: "Осы санаттан кім өтпеді",
+        price: "Бастапқы баға, тг",
+        langs: "Тілдер",
+        hours: "Сағат шегі",
+        hoursOpen: "көрсетілмеген",
+        flags: "Белгілер",
+        synthetic: "синтетикалық профиль",
+        priceImputed: "баға бағдарлы",
+        cityImputed: "қала дайындау кезінде қойылған",
+        order: "Рет: ең төмен бастапқы баға, содан id. Бұл сапа бағасы емес.",
         failed: "Мердігерлерді іріктеу мүмкін болмады."
       },
       en: {
         title: "Smart contractor matching",
         admin: "Admin panel",
-        lead: "Choose the city, date, format, kind of event, budget, and who you need. At most three contractors are listed, and only when they match the catalog.",
-        who: "Who you need",
-        guests: "Guests, at least",
-        eventLanguage: "Event language",
-        any: "any",
-        customBudget: "other amount",
-        languages: "Language",
+        lead: "Set the city, date, event type, contractor category, and budget. Duration and language are optional. At most three cards are returned, and only for people free on that date.",
+        languages: "Interface language",
+        presetDense: "Dense category",
+        presetRare: "Rare category",
+        presetEmpty: "Same request, 12 December",
+        presetMissing: "No category in the city",
         city: "City",
         date: "Date",
-        duration: "Duration, hours",
-        format: "Format",
-        category: "Kind of event",
+        format: "Event type",
+        category: "Contractor category",
         budget: "Budget, KZT",
+        duration: "Duration, hours",
+        optional: "optional",
+        eventLanguage: "Language",
+        any: "any",
         submit: "Match",
         compare: "Comparison",
-        rejectedTitle: "Why the others did not qualify",
-        empty: "No contractor in the catalog passes all five conditions.",
-        jobs: "Jobs completed",
-        range: "Budget range",
-        window: "Open dates",
-        busy: "Busy dates",
-        maxHours: "Hour limit",
-        fit: "Budget fit",
-        score: "Score",
-        formula: "Score = completed jobs + how close the budget is to the middle of the range, from 0 to 1.",
+        rejectedTitle: "Who in this category did not pass",
+        price: "Price from, KZT",
+        langs: "Languages",
+        hours: "Hour limit",
+        hoursOpen: "not set",
+        flags: "Marks",
+        synthetic: "synthetic profile",
+        priceImputed: "indicative price",
+        cityImputed: "city filled during preparation",
+        order: "Order: lowest starting price, then id. This is not a quality score.",
         failed: "Could not match contractors."
       }
     };
 
+    const PRESETS = {
+      dense: { city: "Алматы", date: "2026-10-14", format: "корпоратив", category: "Ведущий", budget: "1 500 000", duration: "", language: "" },
+      rare: { city: "Алматы", date: "2026-10-14", format: "свадьба", category: "Флорист", budget: "500 000", duration: "", language: "" },
+      empty: { city: "Алматы", date: "2026-12-12", format: "корпоратив", category: "Ведущий", budget: "1 500 000", duration: "", language: "" },
+      missing: { city: "Астана", date: "2026-11-14", format: "конференция", category: "Ресторан", budget: "2 000 000", duration: "", language: "" }
+    };
+
     const form = document.querySelector("#search");
-    const budgetSelect = document.querySelector("#budget");
-    const budgetCustom = document.querySelector("#budget-custom");
-    let options = null;
     const cards = document.querySelector("#cards");
     const rejected = document.querySelector("#rejected");
     const error = document.querySelector("#error");
     const compare = document.querySelector("#compare");
+    const outcome = document.querySelector("#outcome");
     let lang = "ru";
     let requestId = 0;
 
@@ -217,46 +237,18 @@
         option.textContent = item.label;
         select.appendChild(option);
       });
-      if (id === "budget") {
-        const custom = document.createElement("option");
-        custom.value = "custom";
-        custom.textContent = I18N[lang].customBudget;
-        select.appendChild(custom);
-      }
       const values = [...select.options].map((option) => option.value);
       select.value = values.includes(current) ? current : (blank ? "" : values[0]);
     }
 
-    function fillServices(items) {
-      const box = document.querySelector("#services");
-      const selected = new Set([...box.querySelectorAll("input:checked")].map((input) => input.value));
-      box.replaceChildren();
-      items.forEach((item) => {
-        const label = document.createElement("label");
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.name = "services";
-        input.value = item.value;
-        input.checked = selected.has(item.value);
-        const text = document.createElement("span");
-        text.textContent = item.label;
-        label.append(input, text);
-        box.appendChild(label);
-      });
-    }
-
     async function loadOptions() {
       const response = await fetch("/api/options?lang=" + lang);
-      options = await response.json();
+      const options = await response.json();
       const keep = (id, fallback) => document.querySelector("#" + id).value || fallback;
-      fillSelect("city", options.cities, keep("city", "Астана"), false);
-      fillSelect("format", options.formats, keep("format", "офлайн"), false);
-      fillSelect("category", options.categories, keep("category", "конференция"), false);
-      fillSelect("budget", options.budgets, keep("budget", "1500000"), false);
-      fillSelect("guests", options.guests, keep("guests", ""), true);
+      fillSelect("city", options.cities, keep("city", "Алматы"), false);
+      fillSelect("format", options.formats, keep("format", "корпоратив"), false);
+      fillSelect("category", options.categories, keep("category", "Ведущий"), false);
       fillSelect("language", options.languages, keep("language", ""), true);
-      fillServices(options.services);
-      budgetCustom.hidden = budgetSelect.value !== "custom";
     }
 
     function applyChrome() {
@@ -266,39 +258,64 @@
       document.querySelectorAll("[data-i18n]").forEach((node) => {
         node.textContent = text[node.dataset.i18n];
       });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+        node.setAttribute("placeholder", text[node.dataset.i18nPlaceholder] || "");
+      });
       document.querySelector("[data-i18n-label]").setAttribute("aria-label", text.languages);
       document.querySelectorAll("[data-lang]").forEach((button) => {
         button.setAttribute("aria-pressed", button.dataset.lang === lang ? "true" : "false");
       });
     }
 
+    function markItems(card) {
+      const text = I18N[lang];
+      const items = [];
+      if (card.synthetic) items.push([text.synthetic, "synthetic"]);
+      if (card.price_imputed) items.push([text.priceImputed, ""]);
+      if (card.city_imputed) items.push([text.cityImputed, ""]);
+      return items;
+    }
+
+    function fillMarks(node, card) {
+      const items = markItems(card);
+      node.replaceChildren();
+      items.forEach(([label, kind]) => {
+        const badge = document.createElement("span");
+        badge.className = kind ? "badge " + kind : "badge";
+        badge.textContent = label;
+        node.appendChild(badge);
+      });
+      node.hidden = items.length === 0;
+    }
+
     function show(data) {
       const text = I18N[lang];
       error.hidden = true;
+      outcome.hidden = false;
+      outcome.className = data.outcome || "";
+      outcome.textContent = data.summary || "";
       cards.replaceChildren();
-      if (!data.cards.length) {
-        const empty = document.createElement("p");
-        empty.textContent = text.empty;
-        cards.appendChild(empty);
-      }
-      data.cards.forEach((card, index) => {
+      (data.cards || []).forEach((card, index) => {
         const article = document.createElement("article");
         const place = document.createElement("p");
         place.className = "place";
         place.textContent = String(index + 1);
         const title = document.createElement("h2");
         title.textContent = card.name;
+        const meta = document.createElement("p");
+        meta.className = "meta";
+        meta.textContent = card.category + " · " + card.city + " · " + money(card.price_from) + " тг";
+        const badges = document.createElement("p");
+        badges.className = "badges";
+        fillMarks(badges, card);
         const body = document.createElement("p");
-        body.textContent = card.reason;
-        const score = document.createElement("p");
-        score.className = "score";
-        score.textContent = text.score + ": " + card.done_count + " + " + card.budget_fit.toFixed(2) + " = " + card.score.toFixed(2);
-        article.append(place, title, body, score);
+        body.textContent = card.explanation;
+        article.append(place, title, meta, badges, body);
         cards.appendChild(article);
       });
 
       compare.replaceChildren();
-      if (data.cards.length) {
+      if (data.cards && data.cards.length) {
         const head = document.createElement("tr");
         const corner = document.createElement("th");
         corner.textContent = text.compare;
@@ -309,13 +326,10 @@
           head.appendChild(cell);
         });
         const rows = [
-          [text.jobs, (card) => String(card.done_count)],
-          [text.range, (card) => money(card.budget_min) + "–" + money(card.budget_max)],
-          [text.window, (card) => card.available_from + "–" + card.available_to],
-          [text.busy, (card) => card.busy_from && card.busy_to ? card.busy_from + "–" + card.busy_to : "—"],
-          [text.maxHours, (card) => card.max_hours ? String(card.max_hours) : "—"],
-          [text.fit, (card) => card.budget_fit.toFixed(2)],
-          [text.score, (card) => card.score.toFixed(2)]
+          [text.price, (card) => money(card.price_from) + (card.price_imputed ? " · " + text.priceImputed : "")],
+          [text.langs, (card) => (card.languages || []).join(", ")],
+          [text.hours, (card) => card.max_hours == null ? text.hoursOpen : String(card.max_hours)],
+          [text.flags, (card) => markItems(card).map((item) => item[0]).join(", ") || "—"]
         ];
         const body = document.createElement("tbody");
         rows.forEach(([label, value]) => {
@@ -331,14 +345,18 @@
           body.appendChild(row);
         });
         const caption = document.createElement("caption");
-        caption.textContent = text.formula;
+        caption.textContent = text.order;
         const thead = document.createElement("thead");
         thead.appendChild(head);
         compare.append(caption, thead, body);
       }
 
+      const hasCards = Boolean(data.cards && data.cards.length);
+      const hasFailed = Boolean(data.failed && data.failed.length);
+      document.querySelector("#compare-title").hidden = !hasCards;
+      document.querySelector("#rejected-title").hidden = !hasFailed;
       rejected.replaceChildren();
-      data.rejected.forEach((item) => {
+      (data.failed || []).forEach((item) => {
         const line = document.createElement("li");
         line.textContent = item.name + " — " + item.reason;
         rejected.appendChild(line);
@@ -349,11 +367,10 @@
       if (event) event.preventDefault();
       const current = ++requestId;
       const params = new URLSearchParams(new FormData(form));
-      if (params.get("budget") === "custom") params.set("budget", budgetCustom.value.replace(/[\s\u00a0\u202f\u2009]/g, ""));
+      params.set("budget", (params.get("budget") || "").replace(/[\s\u00a0\u202f\u2009]/g, ""));
       const duration = (params.get("duration") || "").replace(/[\s\u00a0\u202f\u2009]/g, "");
       if (duration) params.set("duration", duration);
       else params.delete("duration");
-      if (!params.get("guests")) params.delete("guests");
       if (!params.get("language")) params.delete("language");
       params.set("lang", lang);
       const response = await fetch("/api/match?" + params.toString());
@@ -362,13 +379,24 @@
       if (!response.ok) {
         error.hidden = false;
         error.textContent = data.error || I18N[lang].failed;
+        outcome.hidden = true;
         return;
       }
       show(data);
     }
 
-    budgetSelect.addEventListener("change", () => {
-      budgetCustom.hidden = budgetSelect.value !== "custom";
+    document.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = PRESETS[button.dataset.preset];
+        document.querySelector("#city").value = preset.city;
+        document.querySelector("#date").value = preset.date;
+        document.querySelector("#format").value = preset.format;
+        document.querySelector("#category").value = preset.category;
+        document.querySelector("#budget").value = preset.budget;
+        document.querySelector("#duration").value = preset.duration;
+        document.querySelector("#language").value = preset.language;
+        run();
+      });
     });
     document.querySelectorAll("[data-lang]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -384,6 +412,6 @@
     form.addEventListener("submit", run);
     applyChrome();
     loadOptions().then(run);
-  </script>
+</script>
 </body>
 </html>
