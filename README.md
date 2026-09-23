@@ -2,9 +2,7 @@
 
 Авторы: Alexey Azovskiy, Amir Meirmanov.
 
-Репозиторий: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
-
-Публичный адрес [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) — временный туннель Cloudflare, а не постоянный хостинг. Страница открывается, только пока запущены сервис и туннель. Админ-панель: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
+Репозиторий закрытый: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire). Постоянного публичного сайта нет. Проверяющий получает доступ к репозиторию от авторов, клонирует его и запускает сервис на своём компьютере. Пока окно запуска открыто, страница доступна по адресу http://127.0.0.1:8080 , админ-панель — http://127.0.0.1:8080/admin .
 
 Сервис рекомендует подрядчиков по анонимизированному каталогу. Бронирования, оплаты, уведомлений подрядчикам и личных кабинетов заказчиков нет. Внешние API, языковые модели и ключи не используются.
 
@@ -47,24 +45,48 @@
 
 Интерфейс подбора и админки переключается на русский, казахский и английский. Названия значений каталога остаются такими, как они записаны в данных; подписи полей переводятся.
 
-## Запуск и пароль администратора
+## Как жюри запускает проект
 
-Нужен Python 3 из стандартной библиотеки. Зависимости не ставятся.
+Репозиторий закрытый. Авторы заранее открывают доступ аккаунту GitHub проверяющего. Без этого приглашения клонирование завершится ошибкой доступа. Отдельный хостинг и туннель не нужны: сервис поднимается на компьютере проверяющего и работает, пока открыто окно терминала.
+
+Нужен Git и Python 3.10 или новее. Сторонние пакеты не ставятся: хватает стандартной библиотеки Python.
+
+1. Установите [Git](https://git-scm.com/downloads) и [Python](https://www.python.org/downloads/). На Windows в установщике Python отметьте Add python.exe to PATH. Проверка в новом окне терминала: `python --version` показывает 3.10 или выше. Если `python` открывает магазин Microsoft, закройте его и установите Python с python.org.
+2. Клонируйте репозиторий и перейдите в его папку. GitHub запросит вход: используйте аккаунт, которому выдан доступ.
 
 ```
+git clone https://github.com/BAITC-Hacks/hack-af663e73-sejire.git
+cd hack-af663e73-sejire
+```
+
+3. Придумайте пароль администратора не короче 6 символов. В репозитории пароля нет, программа его не печатает и не записывает в журнал. Подставьте свой пароль вместо `ваш-пароль` и запустите сервис из папки проекта.
+
+PowerShell:
+
+```
+$env:ADMIN_PASSWORD="ваш-пароль"
 python app.py
 ```
 
-Порт берётся из переменной `PORT`, адрес — из `HOST`.
+Командная строка Windows:
 
-Пароля в коде и в журнале нет. При первом запуске, если файла `data/admin.json` ещё нет, задайте переменные окружения и не добавляйте их в git:
+```
+set ADMIN_PASSWORD=ваш-пароль
+python app.py
+```
 
-- `ADMIN_PASSWORD` — не короче 6 символов;
-- `ADMIN_USER` — необязательно, по умолчанию `admin`.
+macOS и Linux:
 
-`data/admin.json` хранит только соль и хеш scrypt. Если файл уже есть, сервис его не перезаписывает и пароль не печатает. Смена пароля есть в панели: текущий, новый и повтор.
+```
+ADMIN_PASSWORD='ваш-пароль' python3 app.py
+```
 
-Вход ограничен: больше 8 неудачных попыток с одного адреса за 10 минут получают отказ. Счётчик хранится в памяти процесса и сбрасывается при перезапуске. Сессия тоже в памяти, cookie `session` стоит 12 часов, с флагами `HttpOnly` и `SameSite=Lax`. Флаг `Secure` добавляется, когда запрос пришёл по HTTPS. Изменения в админке принимаются только с заголовком `X-Requested-With: fetch` и с `Origin`, совпадающим с адресом сервиса. Запросы к базе параметризованы.
+Окно не закрывайте. Строка «Сервис слушает порт 8080» означает, что запуск прошёл. Если пароль не задан и файла `data/admin.json` ещё нет, процесс сразу остановится и напишет, что нужна переменная `ADMIN_PASSWORD`.
+
+4. Откройте в браузере http://127.0.0.1:8080 . При первом запуске каталог из 66 профилей сам загружается из `data/contractors.csv`. На главной четыре кнопки с готовыми запросами из раздела «Проверенные запросы». Админ-панель: http://127.0.0.1:8080/admin . Логин `admin`. Пароль — тот, который вы подставили в `ADMIN_PASSWORD`. Логин можно сменить переменной `ADMIN_USER` до первого запуска.
+5. Остановка: в окне терминала нажмите Ctrl+C. После этого страница перестаёт открываться. Следующий запуск из той же папки снова поднимает сервис. Файл `data/admin.json` уже создан, поэтому пароль повторно задавать не нужно: действует первый. В файле лежит только хеш scrypt, не сам пароль. Смена пароля есть в админке: текущий, новый и повтор. Чтобы задать пароль заново через переменную, удалите `data/admin.json` и перед запуском снова укажите `ADMIN_PASSWORD`.
+
+Файлы `data/admin.json` и `data/contractors.db` создаются на компьютере проверяющего и в git не входят. Больше 8 неудачных попыток входа с одного адреса за 10 минут временно блокируются. Сессия и этот счётчик пропадают после остановки процесса. Cookie сессии живёт 12 часов и имеет флаги `HttpOnly` и `SameSite=Lax`.
 
 ## Каталог
 
@@ -87,7 +109,7 @@ CSV загружается в два шага. После выбора файл�
 
 ## Ограничения
 
-Каталог анонимный и покрывает занятость только внутри своего диапазона дат. Цитата в карточке — первое предложение описания, не отдельный отзыв. Сортировка не измеряет качество. Синтетические профили и восстановленные город или цена помечены и не выдаются за подтверждённые сведения. Туннель Cloudflare временный. Сессии и счётчик входа не переживают перезапуск процесса.
+Каталог анонимный и покрывает занятость только внутри своего диапазона дат. Цитата в карточке — первое предложение описания, не отдельный отзыв. Сортировка не измеряет качество. Синтетические профили и восстановленные город или цена помечены и не выдаются за подтверждённые сведения. Страница доступна только пока на компьютере проверяющего запущен `python app.py`. Сессии и счётчик входа не переживают остановку процесса.
 
 ## Проверки
 
@@ -103,9 +125,7 @@ python -m unittest test_match.py
 
 Авторлар: Alexey Azovskiy, Amir Meirmanov.
 
-Репозиторий: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
-
-Жария мекенжай [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) — тұрақты хостинг емес, уақытша Cloudflare туннелі. Бет сервис пен туннель істеп тұрғанда ғана ашылады. Әкімші панелі: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
+Репозиторий жабық: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire). Тұрақты жария сайт жоқ. Тексеруші авторлардан репозиторийге қол жеткізеді, оны көшіріп алады және сервисті өз компьютерінен іске қосады. Іске қосу терезесі ашық тұрғанда бет мына мекенжайда ашылады: http://127.0.0.1:8080 , әкімші панелі — http://127.0.0.1:8080/admin .
 
 Сервис анонимді каталог бойынша мердігер ұсынады. Брондау, төлем, мердігерге хабарлама және тапсырыс берушінің жеке кабинеті жоқ. Сыртқы API, тілдік модель және кілт қолданылмайды.
 
@@ -148,24 +168,48 @@ python -m unittest test_match.py
 
 Іріктеу және әкімші интерфейсі орысша, қазақша және ағылшынша ауысады. Каталог мәндері деректе жазылғанындай қалады, өріс атаулары аударылады.
 
-## Іске қосу және әкімші құпиясөзі
+## Қазылар алқасы жобаны қалай іске қосады
 
-Python 3 және стандартты кітапхана жеткілікті. Тәуелділік орнатылмайды.
+Репозиторий жабық. Авторлар тексерушінің GitHub аккаунтына алдын ала қол жеткізу береді. Шақырусыз клондау қолжетімсіздік қатесімен аяқталады. Бөлек хостинг пен туннель керек емес: сервис тексерушінің компьютерінен көтеріледі және терминал терезесі ашық тұрғанда жұмыс істейді.
+
+Git және Python 3.10 не одан жаңасы керек. Бөгде пакеттер орнатылмайды: Python стандартты кітапханасы жетеді.
+
+1. [Git](https://git-scm.com/downloads) және [Python](https://www.python.org/downloads/) орнатыңыз. Windows жүйесінде Python орнатқышында Add python.exe to PATH белгісін қойыңыз. Жаңа терминал терезесіндегі тексеру: `python --version` 3.10 не одан жоғары нұсқаны көрсетеді. `python` Microsoft дүкенін ашса, оны жауып, Python-ды python.org сайтынан орнатыңыз.
+2. Репозиторийді клондаңыз және оның папкасына кіріңіз. GitHub кіруді сұрайды: қол жеткізу берілген аккаунтты қолданыңыз.
 
 ```
+git clone https://github.com/BAITC-Hacks/hack-af663e73-sejire.git
+cd hack-af663e73-sejire
+```
+
+3. Кемінде 6 таңбадан тұратын әкімші құпиясөзін ойлап табыңыз. Репозиторийде құпиясөз жоқ, бағдарлама оны басып шығармайды және журналға жазбайды. `ваш-пароль` орнына өз құпиясөзіңізді қойып, сервисті жоба папкасынан іске қосыңыз.
+
+PowerShell:
+
+```
+$env:ADMIN_PASSWORD="ваш-пароль"
 python app.py
 ```
 
-Порт `PORT` айнымалысынан, мекенжай `HOST` айнымалысынан алынады.
+Windows командалық жолы:
 
-Құпиясөз кодта да, журналда да жоқ. `data/admin.json` файлы әлі жоқ алғашқы іске қосуда орта айнымалыларын беріңіз және оларды git-ке қоспаңыз:
+```
+set ADMIN_PASSWORD=ваш-пароль
+python app.py
+```
 
-- `ADMIN_PASSWORD` — кемінде 6 таңба;
-- `ADMIN_USER` — міндетті емес, әдепкісі `admin`.
+macOS және Linux:
 
-`data/admin.json` тек scrypt тұзы мен хешін сақтайды. Файл бар болса, сервис оны қайта жазбайды және құпиясөзді басып шығармайды. Құпиясөзді панелде ауыстыруға болады: ағымдағы, жаңа және қайталау.
+```
+ADMIN_PASSWORD='ваш-пароль' python3 app.py
+```
 
-Кіру шектелген: бір мекенжайдан 10 минутта 8-ден артық сәтсіз әрекет қабылданбайды. Есептегіш процесс жадында және қайта қосу кезінде тазаланады. Сессия да жадта, `session` cookie 12 сағат, `HttpOnly` және `SameSite=Lax`. `Secure` сұрау HTTPS арқылы келсе қосылады. Әкімші өзгерістері тек `X-Requested-With: fetch` тақырыбымен және сервис мекенжайына сәйкес `Origin` болса қабылданады. База сұраулары параметрленген.
+Терезесін жаппаңыз. «Сервис слушает порт 8080» жолы іске қосу өткенін білдіреді. Құпиясөз берілмесе және `data/admin.json` файлы әлі жоқ болса, процесс бірден тоқтайды және `ADMIN_PASSWORD` айнымалысы керек екенін жазады.
+
+4. Браузерде http://127.0.0.1:8080 ашыңыз. Алғашқы іске қосуда 66 профильдік каталог `data/contractors.csv` файлынан өзі жүктеледі. Басты бетте «Тексерілген сұраулар» бөліміндегі дайын сұраулардың төрт түймесі бар. Әкімші панелі: http://127.0.0.1:8080/admin . Логин `admin`. Құпиясөз — `ADMIN_PASSWORD` ішіне қойғаныңыз. Логинді алғашқы іске қосуға дейін `ADMIN_USER` айнымалысымен ауыстыруға болады.
+5. Тоқтату: терминал терезесінде Ctrl+C басыңыз. Осыдан кейін бет ашылмайды. Сол папкадан келесі іске қосу сервисті қайта көтереді. `data/admin.json` файлы жасалған, сондықтан құпиясөзді қайта беру керек емес: біріншісі қолданылады. Файлда тек scrypt хеші жатады, құпиясөздің өзі емес. Құпиясөзді панелде ауыстыруға болады: ағымдағы, жаңа және қайталау. Құпиясөзді айнымалы арқылы қайта беру үшін `data/admin.json` файлын жойып, іске қосу алдында `ADMIN_PASSWORD` көрсетіңіз.
+
+`data/admin.json` және `data/contractors.db` файлдары тексерушінің компьютерінен жасалады және git-ке кірмейді. Бір мекенжайдан 10 минутта 8-ден артық сәтсіз кіру уақытша бұғатталады. Сессия мен бұл есептегіш процесті тоқтатқанда жоғалады. Сессия cookie-і 12 сағат сақталады және `HttpOnly`, `SameSite=Lax` белгілері бар.
 
 ## Каталог
 
@@ -188,7 +232,7 @@ CSV екі қадаммен жүктеледі. Файл таңдалған со
 
 ## Шектеулер
 
-Каталог анонимді және бос емес күндерді тек өз күн аралығында көрсетеді. Карточкадағы дәйексөз — сипаттаманың бірінші сөйлемі, бөлек пікір емес. Сұрыптау сапаны өлшемейді. Синтетикалық профильдер және қалпына келтірілген қала немесе баға белгіленеді және расталған дерек ретінде берілмейді. Cloudflare туннелі уақытша. Сессия мен кіру есептегіші процесті қайта қосқанда сақталмайды.
+Каталог анонимді және бос емес күндерді тек өз күн аралығында көрсетеді. Карточкадағы дәйексөз — сипаттаманың бірінші сөйлемі, бөлек пікір емес. Сұрыптау сапаны өлшемейді. Синтетикалық профильдер және қалпына келтірілген қала немесе баға белгіленеді және расталған дерек ретінде берілмейді. Бет тексерушінің компьютерінен `python app.py` іске қосылып тұрғанда ғана ашылады. Сессия мен кіру есептегіші процесті тоқтатқанда сақталмайды.
 
 ## Тексерулер
 
@@ -204,9 +248,7 @@ python -m unittest test_match.py
 
 Authors: Alexey Azovskiy, Amir Meirmanov.
 
-Repository: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire).
-
-The public address [sports-flush-saves-condition.trycloudflare.com](https://sports-flush-saves-condition.trycloudflare.com) is a temporary Cloudflare tunnel, not permanent hosting. The page is available only while the service and the tunnel are running. Admin panel: [sports-flush-saves-condition.trycloudflare.com/admin](https://sports-flush-saves-condition.trycloudflare.com/admin).
+The repository is private: [github.com/BAITC-Hacks/hack-af663e73-sejire](https://github.com/BAITC-Hacks/hack-af663e73-sejire). There is no permanent public site. A reviewer receives access from the authors, clones the repository, and starts the service on their own computer. While that window stays open, the page is at http://127.0.0.1:8080 and the admin panel is at http://127.0.0.1:8080/admin .
 
 The service recommends contractors from an anonymized catalog. There is no booking, payment, contractor notification, or customer account. No external API, language model, or key is used.
 
@@ -249,24 +291,48 @@ Card text is built from that profile’s fields and the query: city, category, p
 
 The matching page and the admin page switch among Russian, Kazakh, and English. Catalog values stay as stored; field labels are translated.
 
-## Run and admin password
+## How the jury starts the project
 
-Python 3 and the standard library are enough. Nothing is installed.
+The repository is private. The authors grant access to the reviewer’s GitHub account in advance. Without that invitation, cloning fails with an access error. No separate hosting or tunnel is required: the service runs on the reviewer’s computer for as long as the terminal window stays open.
+
+Git and Python 3.10 or newer are required. No third-party packages are installed. The Python standard library is enough.
+
+1. Install [Git](https://git-scm.com/downloads) and [Python](https://www.python.org/downloads/). On Windows, check Add python.exe to PATH in the Python installer. In a new terminal, `python --version` should show 3.10 or higher. If `python` opens the Microsoft Store, close it and install Python from python.org.
+2. Clone the repository and enter its folder. GitHub asks you to sign in. Use the account that was granted access.
 
 ```
+git clone https://github.com/BAITC-Hacks/hack-af663e73-sejire.git
+cd hack-af663e73-sejire
+```
+
+3. Choose an admin password of at least 6 characters. The repository contains no password. The program does not print it and does not write it to the log. Replace `your-password` with your own password and start the service from the project folder.
+
+PowerShell:
+
+```
+$env:ADMIN_PASSWORD="your-password"
 python app.py
 ```
 
-The port comes from `PORT` and the address from `HOST`.
+Windows Command Prompt:
 
-There is no password in the code or in the log. On the first run, if `data/admin.json` does not exist yet, set environment variables and do not commit them:
+```
+set ADMIN_PASSWORD=your-password
+python app.py
+```
 
-- `ADMIN_PASSWORD`, at least 6 characters;
-- `ADMIN_USER`, optional, `admin` by default.
+macOS and Linux:
 
-`data/admin.json` stores only a scrypt salt and hash. If the file already exists, the service does not overwrite it and does not print the password. The panel can change it: current password, new password, and a repeat.
+```
+ADMIN_PASSWORD='your-password' python3 app.py
+```
 
-Login is limited: more than 8 failed attempts from one address within 10 minutes are rejected. The counter lives in process memory and resets on restart. The session is in memory too. The `session` cookie lasts 12 hours and has `HttpOnly` and `SameSite=Lax`. `Secure` is added when the request arrived over HTTPS. Admin changes are accepted only with the header `X-Requested-With: fetch` and an `Origin` that matches the service address. Database statements are parameterized.
+Leave the window open. The line “Сервис слушает порт 8080” means the service started. If no password is set and `data/admin.json` does not exist yet, the process stops immediately and says that `ADMIN_PASSWORD` is required.
+
+4. Open http://127.0.0.1:8080 in a browser. On the first start the catalog of 66 profiles is loaded from `data/contractors.csv`. The main page has four buttons for the ready-made requests in “Checked requests”. Admin panel: http://127.0.0.1:8080/admin . The login is `admin`. The password is the one you put in `ADMIN_PASSWORD`. The login can be changed with `ADMIN_USER` before the first start.
+5. To stop, press Ctrl+C in the terminal. The page then stops opening. The next start from the same folder brings the service back. `data/admin.json` already exists, so the password does not need to be set again: the first one remains in effect. The file stores only a scrypt hash, not the password itself. The panel can change it: current password, new password, and a repeat. To set a password through the variable again, delete `data/admin.json` and set `ADMIN_PASSWORD` before starting.
+
+`data/admin.json` and `data/contractors.db` are created on the reviewer’s computer and are not part of git. More than 8 failed login attempts from one address within 10 minutes are blocked for a while. The session and that counter disappear when the process stops. The session cookie lasts 12 hours and has the `HttpOnly` and `SameSite=Lax` flags.
 
 ## Catalog
 
@@ -289,7 +355,7 @@ Repeating any of these requests returns the same set in the same order.
 
 ## Limitations
 
-The catalog is anonymous and its occupancy covers only its own date range. The quotation on a card is the first sentence of the description, not a separate review. The sort does not measure quality. Synthetic profiles and an imputed city or price are marked and are not presented as confirmed facts. The Cloudflare tunnel is temporary. Sessions and the login counter do not survive a process restart.
+The catalog is anonymous and its occupancy covers only its own date range. The quotation on a card is the first sentence of the description, not a separate review. The sort does not measure quality. Synthetic profiles and an imputed city or price are marked and are not presented as confirmed facts. The page is available only while `python app.py` is running on the reviewer’s computer. Sessions and the login counter do not survive stopping the process.
 
 ## Checks
 
